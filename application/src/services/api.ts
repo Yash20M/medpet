@@ -2,8 +2,9 @@ import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { AuthPayload, User } from '../types/auth.types';
 
-// Emulator via adb reverse → localhost tunnels to host port 5000
-export const BASE_URL = 'http://localhost:5000/api';
+// Standalone build on a physical device: point at the backend host's LAN IP
+// (phone and PC must be on the same Wi-Fi network).
+export const BASE_URL = 'http://192.168.31.244:5000/api';
 
 interface ApiSuccess<T> {
   success: true;
