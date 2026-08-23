@@ -1,0 +1,48 @@
+{
+  "expo": {
+    "name": "MedPet",
+    "slug": "medpet",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#E63946",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.medpet.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "MedPet uses your location to set your delivery address for medicine orders.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Delivery partners share live location so customers can track their order in real time.",
+        "UIBackgroundModes": ["location", "fetch"]
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E63946"
+      },
+      "package": "com.medpet.app",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
+      ]
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-audio",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Delivery partners share live location so customers can track their order in real time.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ]
+    ],
+    "newArchEnabled": false
+  }
+}

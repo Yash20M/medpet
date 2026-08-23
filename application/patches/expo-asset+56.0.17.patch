@@ -1,0 +1,35 @@
+diff --git a/node_modules/expo-asset/build/AssetUris.js b/node_modules/expo-asset/build/AssetUris.js
+index 54cc343..066600d 100644
+--- a/node_modules/expo-asset/build/AssetUris.js
++++ b/node_modules/expo-asset/build/AssetUris.js
+@@ -34,7 +34,8 @@ export function getFileExtension(url) {
+  */
+ export function getManifestBaseUrl(manifestUrl) {
+     const urlObject = new URL(manifestUrl);
+-    let nextProtocol = urlObject.protocol;
++    const originalProtocol = urlObject.protocol;
++    let nextProtocol = originalProtocol;
+     // Change the scheme to http(s) if it is exp(s)
+     if (nextProtocol === 'exp:') {
+         nextProtocol = 'http:';
+@@ -42,16 +43,9 @@ export function getManifestBaseUrl(manifestUrl) {
+     else if (nextProtocol === 'exps:') {
+         nextProtocol = 'https:';
+     }
+-    urlObject.protocol = nextProtocol;
+-    // Trim filename, query parameters, and fragment, if any
++    // React Native's URL implementation has protocol/pathname/search/hash as getter-only.
++    // Reconstruct the base URL using string parts instead of property assignment.
+     const directory = urlObject.pathname.substring(0, urlObject.pathname.lastIndexOf('/') + 1);
+-    urlObject.pathname = directory;
+-    urlObject.search = '';
+-    urlObject.hash = '';
+-    // The URL spec doesn't allow for changing the protocol to `http` or `https`
+-    // without a port set so instead, we'll just swap the protocol manually.
+-    return urlObject.protocol !== nextProtocol
+-        ? urlObject.href.replace(urlObject.protocol, nextProtocol)
+-        : urlObject.href;
++    return `${nextProtocol}//${urlObject.host}${directory}`;
+ }
+ //# sourceMappingURL=AssetUris.js.map
+\ No newline at end of file

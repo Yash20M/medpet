@@ -1,0 +1,50 @@
+{
+  "name": "medpet-backend",
+  "version": "1.0.0",
+  "description": "MedPet Backend — modular monolithic Node.js API",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "migrate": "ts-node src/shared/config/migrate.ts",
+    "seed": "ts-node src/shared/config/seed.ts",
+    "type-check": "tsc --noEmit",
+    "test:pure": "ts-node -T tests/pure.test.ts",
+    "test:socket": "ts-node -T tests/socket.test.ts",
+    "test:e2e": "ts-node -T tests/e2e.test.ts",
+    "test:partner": "ts-node -T tests/partner.test.ts",
+    "test:sim": "ts-node -T tests/sim.test.ts",
+    "test:tracking": "npm run test:pure && npm run test:socket && npm run test:e2e && npm run test:partner"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-validator": "^7.2.0",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.2.0",
+    "nodemailer": "^6.10.1",
+    "pg": "^8.12.0",
+    "socket.io": "^4.8.3"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.6",
+    "@types/multer": "^2.1.0",
+    "@types/node": "^20.14.0",
+    "@types/nodemailer": "^6.4.24",
+    "@types/pg": "^8.11.6",
+    "socket.io-client": "^4.8.3",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.4.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
