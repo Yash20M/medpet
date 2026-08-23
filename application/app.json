@@ -15,7 +15,10 @@
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "MedPet uses your location to set your delivery address for medicine orders.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "Delivery partners share live location so customers can track their order in real time.",
-        "UIBackgroundModes": ["location", "fetch"]
+        "UIBackgroundModes": [
+          "location",
+          "fetch"
+        ]
       }
     },
     "android": {
@@ -28,7 +31,15 @@
         "ACCESS_FINE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",
         "FOREGROUND_SERVICE",
-        "FOREGROUND_SERVICE_LOCATION"
+        "FOREGROUND_SERVICE_LOCATION",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE_LOCATION"
       ]
     },
     "plugins": [
@@ -43,6 +54,12 @@
         }
       ]
     ],
-    "newArchEnabled": false
+    "newArchEnabled": false,
+    "extra": {
+      "eas": {
+        "projectId": "ab3c8b58-bc10-410d-a74f-07a9b9005af4"
+      }
+    },
+    "owner": "yashmahalle"
   }
 }
