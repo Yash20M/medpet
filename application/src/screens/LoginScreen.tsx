@@ -87,7 +87,11 @@ const LoginScreen = ({ navigation }: Props) => {
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
+    >
       <LinearGradient colors={GRADIENTS.primary} style={styles.header}>
         <View style={styles.decor1} />
         <View style={styles.decor2} />

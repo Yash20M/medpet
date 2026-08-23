@@ -214,7 +214,13 @@ const ProductDetailScreen = ({ navigation, route }: Props) => {
               style={[styles.tab, infoTab === t.key && styles.tabActive]}
               onPress={() => setInfoTab(t.key)}
             >
-              <Text style={[styles.tabText, infoTab === t.key && styles.tabTextActive]}>{t.label}</Text>
+              <Text
+                style={[styles.tabText, infoTab === t.key && styles.tabTextActive]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+              >
+                {t.label}
+              </Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -379,11 +385,11 @@ const styles = StyleSheet.create({
   description: { fontSize: 14, color: COLORS.gray, lineHeight: 22, marginBottom: 22 },
   tabsRow: { flexDirection: 'row', gap: 6, marginBottom: 10 },
   tab: {
-    flex: 1, paddingVertical: 8, borderRadius: RADII.pill, backgroundColor: COLORS.white,
-    alignItems: 'center', borderWidth: 1, borderColor: COLORS.grayBorder,
+    flex: 1, minWidth: 0, paddingVertical: 8, paddingHorizontal: 2, borderRadius: RADII.pill, backgroundColor: COLORS.white,
+    alignItems: 'center', borderWidth: 1, borderColor: COLORS.grayBorder, overflow: 'hidden',
   },
   tabActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  tabText: { fontSize: 10, fontWeight: '700', color: COLORS.gray },
+  tabText: { flexShrink: 1, fontSize: 10, fontWeight: '700', color: COLORS.gray },
   tabTextActive: { color: COLORS.white },
   infoCard: { backgroundColor: COLORS.white, borderRadius: RADII.md, padding: 14, marginBottom: 22, ...SHADOWS.card },
   ingRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },

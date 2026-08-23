@@ -49,15 +49,15 @@ const VetConsultCard = ({ onVideoCall, onChat, onSchedule }: Props) => {
       <View style={styles.actions}>
         <PressableScale style={styles.actionPrimary} onPress={onVideoCall} scaleTo={0.94}>
           <Ionicons name="videocam" size={16} color={COLORS.purpleDark} />
-          <Text style={styles.actionPrimaryText}>Video Call</Text>
+          <Text style={styles.actionPrimaryText} numberOfLines={1} adjustsFontSizeToFit>Video Call</Text>
         </PressableScale>
         <PressableScale style={styles.actionGhost} onPress={onChat} scaleTo={0.94}>
           <Ionicons name="chatbubble-ellipses" size={15} color={COLORS.white} />
-          <Text style={styles.actionGhostText}>Chat</Text>
+          <Text style={styles.actionGhostText} numberOfLines={1} adjustsFontSizeToFit>Chat</Text>
         </PressableScale>
         <PressableScale style={styles.actionGhost} onPress={onSchedule} scaleTo={0.94}>
           <Ionicons name="calendar" size={15} color={COLORS.white} />
-          <Text style={styles.actionGhostText}>Schedule</Text>
+          <Text style={styles.actionGhostText} numberOfLines={1} adjustsFontSizeToFit>Schedule</Text>
         </PressableScale>
       </View>
     </LinearGradient>
@@ -83,16 +83,16 @@ const styles = StyleSheet.create({
   },
   actions: { flexDirection: 'row', gap: 8, marginTop: 16 },
   actionPrimary: {
-    flex: 1.2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    backgroundColor: COLORS.white, borderRadius: RADII.md, paddingVertical: 10,
+    flex: 1.2, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    backgroundColor: COLORS.white, borderRadius: RADII.md, paddingVertical: 10, paddingHorizontal: 2, overflow: 'hidden',
   },
-  actionPrimaryText: { fontSize: 12, fontWeight: '800', color: COLORS.purpleDark },
+  actionPrimaryText: { flexShrink: 1, fontSize: 12, fontWeight: '800', color: COLORS.purpleDark },
   actionGhost: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
-    backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: RADII.md, paddingVertical: 10,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)',
+    flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5,
+    backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: RADII.md, paddingVertical: 10, paddingHorizontal: 2,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.3)', overflow: 'hidden',
   },
-  actionGhostText: { fontSize: 12, fontWeight: '700', color: COLORS.white },
+  actionGhostText: { flexShrink: 1, fontSize: 12, fontWeight: '700', color: COLORS.white },
 });
 
 export default VetConsultCard;

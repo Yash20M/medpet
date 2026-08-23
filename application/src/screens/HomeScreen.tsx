@@ -34,6 +34,8 @@ import { QuickAction } from '../data/premium';
 import { formatPrice } from '../types/product.types';
 import { useCategories, useProducts, useOffers } from '../hooks/useCatalog';
 import { useHomeContent } from '../hooks/useHomeContent';
+import { orderAPI, trackingAPI, LivePhase } from '../services/api';
+import { TRACKABLE_STATUSES } from '../utils/tracking';
 
 const { width } = Dimensions.get('window');
 const CARD_W = (width - 52) / 2;
@@ -62,6 +64,28 @@ const HomeScreen = ({ navigation }: Props) => {
   const [search, setSearch] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [showPetModal, setShowPetModal] = useState(false);
+  const [activeOrder, setActiveOrder] = useState<{ id: number; phase: LivePhase | null; etaMins: number | null } | null>(null);
+
+  const loadActiveOrder = useCallback(async () => {
+    if (!isAuthenticated) { setActiveOrder(null); return; }
+    try {
+      const res = await orderAPI.list();
+      const trackable = res.data.find((o) => TRACKABLE_STATUSES.has(o.status));
+      if (!trackable) { setActiveOrder(null); return; }
+      let phase: LivePhase | null = null;
+      let etaMins: number | null = null;
+      try {
+        const t = await trackingAPI.get(trackable.id);
+        phase = t.data.phase;
+        etaMins = t.data.tracking.etaMinutes ?? t.data.route?.estimatedMinutes ?? null;
+      } catch { /* order exists but tracking not dispatched yet — show without ETA */ }
+      setActiveOrder({ id: trackable.id, phase, etaMins });
+    } catch {
+      setActiveOrder(null);
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => { loadActiveOrder(); }, [loadActiveOrder]);
 
   // Once signed in and pets have actually been fetched, nudge the user to add
   // one if none exist. `petsLoaded` only flips true after the first fetch, so
@@ -77,9 +101,9 @@ const HomeScreen = ({ navigation }: Props) => {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     content.reload();
-    await Promise.all([reloadCategories(), reloadFeatured(), reloadOffers()]);
+    await Promise.all([reloadCategories(), reloadFeatured(), reloadOffers(), loadActiveOrder()]);
     setRefreshing(false);
-  }, [reloadCategories, reloadFeatured, reloadOffers, content.reload]);
+  }, [reloadCategories, reloadFeatured, reloadOffers, content.reload, loadActiveOrder]);
 
   const greeting = (): string => {
     const h = new Date().getHours();
@@ -186,10 +210,15 @@ const HomeScreen = ({ navigation }: Props) => {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} colors={[COLORS.primary]} />}
       >
 
-        {/* ─── Delivery status ─────────────────────────────── */}
-        {isAuthenticated && (
+        {/* ─── Delivery status — only shown while an order is actually in flight ─── */}
+        {isAuthenticated && activeOrder && (
           <View style={styles.section}>
-            <DeliveryCard etaMins={content.etaMins} />
+            <DeliveryCard
+              orderId={activeOrder.id}
+              phase={activeOrder.phase}
+              etaMins={activeOrder.etaMins}
+              onPress={() => navigation.navigate('LiveTracking', { orderId: activeOrder.id })}
+            />
           </View>
         )}
 

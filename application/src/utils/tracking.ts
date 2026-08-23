@@ -37,6 +37,9 @@ export const phaseIndex = (phase: LivePhase | null): number => {
 
 export const phaseMeta = (phase: LivePhase | null): PhaseMeta => PHASES[phaseIndex(phase)];
 
+/** Order statuses for which live tracking is meaningful (dispatched, not yet delivered/cancelled). */
+export const TRACKABLE_STATUSES = new Set<OrderStatus>(['pending', 'confirmed', 'shipped']);
+
 /**
  * Derive a live phase from the canonical order status, for orders that were
  * placed before the tracking phase existed (or aren't dispatched yet).

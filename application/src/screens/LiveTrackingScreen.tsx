@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar,
-  Alert, Share, Dimensions, Linking, Platform,
+  View, Text, StyleSheet, ScrollView, Animated, TouchableOpacity, StatusBar,
+  Alert, Share, Dimensions, Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -15,13 +15,15 @@ import { RootStackParamList } from '../types/navigation.types';
 import MediaThumb from '../components/MediaThumb';
 import { useTracking } from '../hooks/useTracking';
 import { phaseFromStatus } from '../utils/tracking';
-import VectorMap from '../components/tracking/VectorMap';
+import LeafletMap from '../components/tracking/LeafletMap';
 import StatusBar2 from '../components/tracking/StatusBar';
 import DriverCard from '../components/tracking/DriverCard';
 import ETAChip from '../components/tracking/ETAChip';
 
 const { height: SCREEN_H } = Dimensions.get('window');
 const MAP_H = Math.round(SCREEN_H * 0.42);
+const MINI_H = 88;
+const COLLAPSE_DISTANCE = MAP_H - MINI_H;
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'LiveTracking'>;
@@ -47,10 +49,30 @@ const LiveTrackingScreen = ({ navigation, route }: Props) => {
   const insets = useSafeAreaInsets();
   const { state, live, connection } = useTracking(orderId);
   const [order, setOrder] = useState<ApiOrder | null>(null);
+  const [mapCollapsed, setMapCollapsed] = useState(false);
+  const scrollY = useRef(new Animated.Value(0)).current;
+  const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     orderAPI.get(orderId).then((res) => setOrder(res.data)).catch(() => {});
   }, [orderId]);
+
+  // Drives the collapse threshold for the "expand" button, and its fade.
+  useEffect(() => {
+    const id = scrollY.addListener(({ value }) => {
+      const isCollapsed = value > COLLAPSE_DISTANCE * 0.6;
+      setMapCollapsed((prev) => (prev !== isCollapsed ? isCollapsed : prev));
+    });
+    return () => scrollY.removeListener(id);
+  }, [scrollY]);
+
+  const mapHeight = scrollY.interpolate({
+    inputRange: [0, COLLAPSE_DISTANCE], outputRange: [MAP_H, MINI_H], extrapolate: 'clamp',
+  });
+  const expandOpacity = scrollY.interpolate({
+    inputRange: [COLLAPSE_DISTANCE * 0.5, COLLAPSE_DISTANCE], outputRange: [0, 1], extrapolate: 'clamp',
+  });
+  const expandMap = (): void => scrollRef.current?.scrollTo({ y: 0, animated: true });
 
   const phase = live?.phase ?? phaseFromStatus(state?.status ?? 'pending', state?.phase ?? null);
   const delivered = phase === 'delivered' || state?.status === 'delivered';
@@ -58,7 +80,7 @@ const LiveTrackingScreen = ({ navigation, route }: Props) => {
 
   const driverPos = live ? { lat: live.lat, lng: live.lng } : state?.driver.location ?? null;
   const progress = live?.progress ?? state?.tracking.progress ?? 0;
-  const eta = live?.eta ?? state?.tracking.etaMinutes ?? state?.route?.estimatedMinutes ?? 0;
+  const eta = live?.eta ?? state?.tracking.etaMinutes ?? state?.route?.estimatedMinutes ?? null;
   const distanceRemaining =
     live?.distanceRemaining ?? state?.tracking.distanceRemainingKm ?? state?.route?.distanceKm ?? null;
   const polyline = state?.route?.polyline ?? [];
@@ -72,7 +94,8 @@ const LiveTrackingScreen = ({ navigation, route }: Props) => {
     else Alert.alert('No number yet', 'Your rider’s contact will appear once assigned.');
   };
   const shareTracking = (): void => {
-    Share.share({ message: `Track my MedPet order ${orderNumber} — arriving in ~${eta} min! 🐾` }).catch(() => {});
+    const etaText = eta != null ? ` — arriving in ~${eta} min!` : '';
+    Share.share({ message: `Track my MedPet order ${orderNumber}${etaText} 🐾` }).catch(() => {});
   };
 
   return (
@@ -92,32 +115,48 @@ const LiveTrackingScreen = ({ navigation, route }: Props) => {
         </View>
       </LinearGradient>
 
-      {/* Map */}
-      <View style={{ height: MAP_H }}>
-        <VectorMap
-          pickup={state?.pickup ?? null}
-          drop={state?.drop ?? null}
-          polyline={polyline}
-          driver={driverPos}
-          progress={progress}
-          heading={live?.heading ?? 0}
-          height={MAP_H}
-          delivered={delivered}
-        />
-        <View style={[styles.mapOverlayTop, { }]} pointerEvents="box-none">
-          <ConnectionPill status={connection} />
-          <ETAChip etaMinutes={eta} delivered={delivered} />
-        </View>
-        {!hasRoute && !delivered && (
-          <View style={styles.mapHint} pointerEvents="none">
-            <Ionicons name="map-outline" size={16} color={COLORS.white} />
-            <Text style={styles.mapHintText}>Live map appears once your order is on the way</Text>
+      {/* Map — shrinks to a peek strip as the sheet below is scrolled up, Blinkit-style */}
+      <Animated.View style={[styles.mapClip, { height: mapHeight }]}>
+        <View style={{ height: MAP_H }}>
+          <LeafletMap
+            pickup={state?.pickup ?? null}
+            drop={state?.drop ?? null}
+            polyline={polyline}
+            driver={driverPos}
+            progress={progress}
+            heading={live?.heading ?? 0}
+            height={MAP_H}
+            delivered={delivered}
+          />
+          <View style={styles.mapOverlayTop} pointerEvents="box-none">
+            <ConnectionPill status={connection} />
+            <ETAChip etaMinutes={eta} delivered={delivered} />
           </View>
-        )}
-      </View>
+          {!hasRoute && !delivered && (
+            <View style={styles.mapHint} pointerEvents="none">
+              <Ionicons name="map-outline" size={16} color={COLORS.white} />
+              <Text style={styles.mapHintText}>Live map appears once your order is on the way</Text>
+            </View>
+          )}
+        </View>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 24 }]}>
-        {/* Status bar pulled up to overlap the map */}
+        <Animated.View
+          style={[styles.expandBtnWrap, { opacity: expandOpacity }]}
+          pointerEvents={mapCollapsed ? 'auto' : 'none'}
+        >
+          <TouchableOpacity style={styles.expandBtn} onPress={expandMap} activeOpacity={0.85}>
+            <Ionicons name="expand-outline" size={16} color={COLORS.white} />
+          </TouchableOpacity>
+        </Animated.View>
+      </Animated.View>
+
+      <Animated.ScrollView
+        ref={scrollRef}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 24 }]}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
+        scrollEventThrottle={16}
+      >
         {!cancelled && (
           <View style={styles.statusWrap}>
             <StatusBar2 phase={phase} progress={progress} />
@@ -176,7 +215,7 @@ const LiveTrackingScreen = ({ navigation, route }: Props) => {
             </TouchableOpacity>
           </View>
         )}
-      </ScrollView>
+      </Animated.ScrollView>
 
       {/* Delivered celebration overlay */}
       {delivered && (
@@ -201,6 +240,12 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   iconBtn: { width: 32, padding: 4 },
   headerTitle: { fontSize: 18, fontWeight: '800', color: COLORS.white },
+  mapClip: { width: '100%', overflow: 'hidden', backgroundColor: '#0B1220' },
+  expandBtnWrap: { position: 'absolute', bottom: 10, right: 14 },
+  expandBtn: {
+    width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(15,23,42,0.9)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
+  },
   mapOverlayTop: {
     position: 'absolute', top: 12, left: 16, right: 16,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
@@ -210,8 +255,8 @@ const styles = StyleSheet.create({
   pillText: { color: COLORS.white, fontSize: 12, fontWeight: '700' },
   mapHint: { position: 'absolute', bottom: 12, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: 'rgba(15,23,42,0.85)', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
   mapHintText: { color: COLORS.white, fontSize: 11.5, fontWeight: '600' },
-  scroll: { padding: 20, paddingTop: 0 },
-  statusWrap: { marginTop: -26, marginBottom: 16 },
+  scroll: { padding: 20, paddingTop: 16 },
+  statusWrap: { marginBottom: 16 },
   cancelledBox: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: '#FEF2F2', borderRadius: 14, padding: 16, marginTop: 16, marginBottom: 16 },
   cancelledText: { fontSize: 14, fontWeight: '700', color: COLORS.error },
   stripRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },

@@ -13,6 +13,7 @@ import { useCart } from '../context/CartContext';
 import { formatPrice } from '../types/product.types';
 import { COLORS, GRADIENTS } from '../theme/colors';
 import { RootStackParamList } from '../types/navigation.types';
+import { TRACKABLE_STATUSES } from '../utils/tracking';
 
 type Props = { navigation: NativeStackNavigationProp<RootStackParamList, 'Orders'> };
 
@@ -23,8 +24,6 @@ const STATUS_META: Record<string, { color: string; bg: string; icon: React.Compo
   delivered: { color: COLORS.success, bg: '#DCFCE7', icon: 'checkmark-done-circle-outline' },
   cancelled: { color: COLORS.error, bg: '#FEE2E2', icon: 'close-circle-outline' },
 };
-
-const TRACKABLE = new Set(['pending', 'confirmed', 'shipped']);
 
 const OrdersScreen = ({ navigation }: Props) => {
   const insets = useSafeAreaInsets();
@@ -104,7 +103,7 @@ const OrdersScreen = ({ navigation }: Props) => {
         >
           {orders.map((o) => {
             const meta = STATUS_META[o.status] ?? STATUS_META.pending;
-            const trackable = TRACKABLE.has(o.status);
+            const trackable = TRACKABLE_STATUSES.has(o.status);
             return (
               <TouchableOpacity
                 key={o.id}
@@ -136,8 +135,8 @@ const OrdersScreen = ({ navigation }: Props) => {
                       style={[styles.actionBtn, styles.actionPrimary]}
                       onPress={() => navigation.navigate('LiveTracking', { orderId: o.id })}
                     >
-                      <Ionicons name="navigate" size={13} color={COLORS.white} />
-                      <Text style={styles.actionPrimaryText}>Track Live</Text>
+                      <Ionicons name="navigate" size={12} color={COLORS.white} />
+                      <Text style={styles.actionPrimaryText} numberOfLines={1} adjustsFontSizeToFit>Track Live</Text>
                     </TouchableOpacity>
                   )}
                   <TouchableOpacity
@@ -147,16 +146,16 @@ const OrdersScreen = ({ navigation }: Props) => {
                   >
                     {reorderingId === o.id
                       ? <ActivityIndicator size="small" color={COLORS.primary} />
-                      : <Ionicons name="refresh" size={13} color={COLORS.primary} />}
-                    <Text style={styles.actionText}>Reorder</Text>
+                      : <Ionicons name="refresh" size={12} color={COLORS.primary} />}
+                    <Text style={styles.actionText} numberOfLines={1} adjustsFontSizeToFit>Reorder</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.actionBtn} onPress={() => downloadInvoice(o)}>
-                    <Ionicons name="download-outline" size={13} color={COLORS.primary} />
-                    <Text style={styles.actionText}>Invoice</Text>
+                    <Ionicons name="download-outline" size={12} color={COLORS.primary} />
+                    <Text style={styles.actionText} numberOfLines={1} adjustsFontSizeToFit>Invoice</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('SupportTickets')}>
-                    <Ionicons name="help-buoy-outline" size={13} color={COLORS.primary} />
-                    <Text style={styles.actionText}>Help</Text>
+                    <Ionicons name="help-buoy-outline" size={12} color={COLORS.primary} />
+                    <Text style={styles.actionText} numberOfLines={1} adjustsFontSizeToFit>Help</Text>
                   </TouchableOpacity>
                 </View>
               </TouchableOpacity>
@@ -189,12 +188,13 @@ const styles = StyleSheet.create({
   total: { fontSize: 15, fontWeight: '800', color: COLORS.primary },
   actions: { flexDirection: 'row', gap: 6, marginTop: 12 },
   actionBtn: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4,
-    borderRadius: 10, paddingVertical: 8, backgroundColor: COLORS.primaryLight,
+    flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3,
+    borderRadius: 10, paddingVertical: 8, paddingHorizontal: 2, backgroundColor: COLORS.primaryLight,
+    overflow: 'hidden',
   },
   actionPrimary: { backgroundColor: COLORS.primary },
-  actionPrimaryText: { fontSize: 11, fontWeight: '800', color: COLORS.white },
-  actionText: { fontSize: 11, fontWeight: '800', color: COLORS.primaryDark },
+  actionPrimaryText: { flexShrink: 1, fontSize: 11, fontWeight: '800', color: COLORS.white },
+  actionText: { flexShrink: 1, fontSize: 11, fontWeight: '800', color: COLORS.primaryDark },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
   emptyEmoji: { fontSize: 64, marginBottom: 16 },
   emptyTitle: { fontSize: 20, fontWeight: '800', color: COLORS.black, marginBottom: 6 },

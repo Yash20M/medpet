@@ -4,7 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../../theme/colors';
 
 interface Props {
-  etaMinutes: number;
+  /** null = no ETA yet (not dispatched / no rider assigned), distinct from a real 0. */
+  etaMinutes: number | null;
   delivered?: boolean;
 }
 
@@ -12,8 +13,11 @@ interface Props {
 const ETAChip = ({ etaMinutes, delivered }: Props) => (
   <View style={styles.chip}>
     <Ionicons name={delivered ? 'checkmark-done' : 'time'} size={14} color={COLORS.white} />
-    <Text style={styles.text}>
-      {delivered ? 'Delivered' : etaMinutes <= 0 ? 'Arriving now' : `${etaMinutes} min`}
+    <Text style={styles.text} numberOfLines={1}>
+      {delivered ? 'Delivered'
+        : etaMinutes == null ? 'Preparing'
+        : etaMinutes <= 0 ? 'Arriving now'
+        : `${etaMinutes} min`}
     </Text>
   </View>
 );
