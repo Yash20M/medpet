@@ -30,6 +30,7 @@ export interface OrderRow {
   coupon_code?: string | null;
   delivery_partner_id: number | null;
   accepted_at: Date | null;
+  status_reason: string | null;
   created_at: Date;
   updated_at: Date;
 }

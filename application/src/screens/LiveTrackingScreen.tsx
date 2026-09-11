@@ -50,6 +50,7 @@ const LiveTrackingScreen = ({ navigation, route }: Props) => {
   const { state, live, connection } = useTracking(orderId);
   const [order, setOrder] = useState<ApiOrder | null>(null);
   const [mapCollapsed, setMapCollapsed] = useState(false);
+  const [focusRequest, setFocusRequest] = useState<{ target: 'drop' | 'driver' | 'route'; nonce: number } | null>(null);
   const scrollY = useRef(new Animated.Value(0)).current;
   const scrollRef = useRef<ScrollView>(null);
 
@@ -72,7 +73,14 @@ const LiveTrackingScreen = ({ navigation, route }: Props) => {
   const expandOpacity = scrollY.interpolate({
     inputRange: [COLLAPSE_DISTANCE * 0.5, COLLAPSE_DISTANCE], outputRange: [0, 1], extrapolate: 'clamp',
   });
+  // Map controls belong to the expanded map only — they swap out for the
+  // expand affordance as the map shrinks.
+  const controlsOpacity = scrollY.interpolate({
+    inputRange: [COLLAPSE_DISTANCE * 0.5, COLLAPSE_DISTANCE], outputRange: [1, 0], extrapolate: 'clamp',
+  });
   const expandMap = (): void => scrollRef.current?.scrollTo({ y: 0, animated: true });
+  const recenter = (target: 'drop' | 'driver' | 'route'): void =>
+    setFocusRequest((prev) => ({ target, nonce: (prev?.nonce ?? 0) + 1 }));
 
   const phase = live?.phase ?? phaseFromStatus(state?.status ?? 'pending', state?.phase ?? null);
   const delivered = phase === 'delivered' || state?.status === 'delivered';
@@ -127,15 +135,22 @@ const LiveTrackingScreen = ({ navigation, route }: Props) => {
             heading={live?.heading ?? 0}
             height={MAP_H}
             delivered={delivered}
+            etaMinutes={eta}
+            distanceRemainingKm={distanceRemaining}
+            focusRequest={focusRequest}
           />
           <View style={styles.mapOverlayTop} pointerEvents="box-none">
             <ConnectionPill status={connection} />
             <ETAChip etaMinutes={eta} delivered={delivered} />
           </View>
-          {!hasRoute && !delivered && (
+          {!delivered && (!hasRoute || !driverPos) && (
             <View style={styles.mapHint} pointerEvents="none">
-              <Ionicons name="map-outline" size={16} color={COLORS.white} />
-              <Text style={styles.mapHintText}>Live map appears once your order is on the way</Text>
+              <Ionicons name={hasRoute ? 'bicycle-outline' : 'map-outline'} size={16} color={COLORS.white} />
+              <Text style={styles.mapHintText} numberOfLines={1}>
+                {hasRoute
+                  ? 'Your rider will appear here once assigned'
+                  : 'Live map appears once your order is on the way'}
+              </Text>
             </View>
           )}
         </View>
@@ -146,6 +161,19 @@ const LiveTrackingScreen = ({ navigation, route }: Props) => {
         >
           <TouchableOpacity style={styles.expandBtn} onPress={expandMap} activeOpacity={0.85}>
             <Ionicons name="expand-outline" size={16} color={COLORS.white} />
+          </TouchableOpacity>
+        </Animated.View>
+
+        {/* Map controls — recentre on the customer's doorstep, or frame the whole trip */}
+        <Animated.View
+          style={[styles.mapControls, { opacity: controlsOpacity }]}
+          pointerEvents={mapCollapsed ? 'none' : 'auto'}
+        >
+          <TouchableOpacity style={styles.mapCtrlBtn} onPress={() => recenter('route')} activeOpacity={0.85}>
+            <Ionicons name="scan-outline" size={18} color={COLORS.black} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.mapCtrlBtn} onPress={() => recenter('drop')} activeOpacity={0.85}>
+            <Ionicons name="home" size={17} color={COLORS.primary} />
           </TouchableOpacity>
         </Animated.View>
       </Animated.View>
@@ -195,6 +223,17 @@ const LiveTrackingScreen = ({ navigation, route }: Props) => {
           />
         )}
 
+        {/* Delivery OTP reminder — the code itself is only ever in the email,
+            never re-shown in-app, so this just points them to check it. */}
+        {!cancelled && !delivered && state?.status === 'shipped' && (
+          <View style={styles.otpNote}>
+            <Ionicons name="shield-checkmark-outline" size={18} color={COLORS.primaryDark} />
+            <Text style={styles.otpNoteText}>
+              We emailed you a delivery code — share it with your delivery partner when they arrive to confirm the handoff.
+            </Text>
+          </View>
+        )}
+
         {/* Order items */}
         {order && (
           <View style={styles.orderCard}>
@@ -242,6 +281,12 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 18, fontWeight: '800', color: COLORS.white },
   mapClip: { width: '100%', overflow: 'hidden', backgroundColor: '#0B1220' },
   expandBtnWrap: { position: 'absolute', bottom: 10, right: 14 },
+  mapControls: { position: 'absolute', bottom: 12, right: 14, gap: 8 },
+  mapCtrlBtn: {
+    width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: COLORS.white,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.22, shadowRadius: 6, elevation: 5,
+  },
   expandBtn: {
     width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center',
     backgroundColor: 'rgba(15,23,42,0.9)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.18)',
@@ -263,6 +308,11 @@ const styles = StyleSheet.create({
   stripText: { fontSize: 13, fontWeight: '800', color: COLORS.black, flex: 1 },
   stripDotRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   stripMuted: { fontSize: 12.5, fontWeight: '700', color: COLORS.gray },
+  otpNote: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: COLORS.primaryLight,
+    borderRadius: RADII.md, padding: 12, marginTop: 12,
+  },
+  otpNoteText: { flex: 1, fontSize: 12.5, fontWeight: '600', color: COLORS.primaryDark, lineHeight: 18 },
   orderCard: { backgroundColor: COLORS.white, borderRadius: RADII.lg, padding: 16, marginTop: 16, ...SHADOWS.card },
   orderTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   orderTitle: { fontSize: 15, fontWeight: '800', color: COLORS.black },

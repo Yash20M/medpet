@@ -14,4 +14,5 @@ export const createOrderValidator: ValidationChain[] = [
 export const updateOrderStatusValidator: ValidationChain[] = [
   body('status').isIn(['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'])
     .withMessage('Invalid status.'),
+  body('reason').optional().isString().isLength({ max: 500 }),
 ];

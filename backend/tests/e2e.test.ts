@@ -9,6 +9,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import http from 'http';
+import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { io as ioClient, Socket } from 'socket.io-client';
@@ -16,6 +17,12 @@ import createApp from '../src/app';
 import { attachSockets } from '../src/shared/realtime/socket';
 import { LatLng } from '../src/shared/config/amravati';
 import db from '../src/shared/config/database';
+
+// Matches DeliveryOtpService's own hashing exactly — used here to seed a known
+// OTP directly in the DB so this test can confirm delivery deterministically
+// without needing to read a real inbox (the "email really contains the right
+// code" path is covered separately by tests/delivery-otp.test.ts).
+const hashOtp = (otp: string): string => crypto.createHash('sha256').update(otp).digest('hex');
 
 let passed = 0, failed = 0;
 const ok = (n: string, c: boolean, extra = ''): void => {
@@ -107,7 +114,38 @@ async function run(): Promise<void> {
   ok('order appeared in /drivers/active mid-delivery', midActiveHadOrder);
   const etas = adminLocations.map((l) => l.eta);
   ok('ETA decreases monotonically (no random jumps)', etas[etas.length - 1] <= etas[0], `${etas[0]} → ${etas[etas.length - 1]} min`);
-  ok('admin saw phase progression to delivered', adminStatus.some((s) => s.newStatus === 'delivered'), adminStatus.map((s) => s.newStatus).join(' → '));
+  // GPS proximity alone caps out at 'nearby' now — completing the delivery
+  // requires the customer's OTP (see DeliveryOtpService), not just arriving.
+  ok('admin saw phase progression to nearby (not auto-delivered by GPS alone)', adminStatus.some((s) => s.newStatus === 'nearby'), adminStatus.map((s) => s.newStatus).join(' → '));
+  ok('GPS proximity alone never auto-completes the delivery', !adminStatus.some((s) => s.newStatus === 'delivered'));
+  const midTrackRes = await fetch(`${url}/api/orders/${orderId}/tracking`, { headers: { Authorization: `Bearer ${adminTok}` } });
+  const midTrack = (await midTrackRes.json() as { data: any }).data;
+  ok('order status is still shipped pre-OTP', midTrack.status === 'shipped');
+
+  // ── Step 9 — Driver confirms the OTP-gated handoff ─────────────────────────
+  console.log('\nStep — Driver confirms delivery via OTP (POST /delivery/orders/:id/deliver)');
+  const TEST_OTP = '424242';
+  await db.query(
+    `UPDATE orders SET delivery_otp_hash = $1, delivery_otp_expires_at = NOW() + INTERVAL '1 hour' WHERE id = $2`,
+    [hashOtp(TEST_OTP), orderId]
+  );
+
+  const wrongOtpRes = await fetch(`${url}/api/delivery/orders/${orderId}/deliver`, {
+    method: 'POST', headers: { Authorization: `Bearer ${driverTok}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ otp: '000000' }),
+  });
+  const wrongOtp = await wrongOtpRes.json() as { success: boolean };
+  ok('wrong OTP is rejected (400)', wrongOtpRes.status === 400 && wrongOtp.success === false);
+
+  const deliverRes = await fetch(`${url}/api/delivery/orders/${orderId}/deliver`, {
+    method: 'POST', headers: { Authorization: `Bearer ${driverTok}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ otp: TEST_OTP }),
+  });
+  const deliver = await deliverRes.json() as { success: boolean; data: any };
+  ok('correct OTP confirms delivery', deliverRes.status === 200 && deliver.success && deliver.data.status === 'delivered');
+
+  await sleep(300); // let the delivery controller's socket broadcast land
+  ok('admin received a real-time delivered status-change on OTP confirmation', adminStatus.some((s) => s.newStatus === 'delivered'), adminStatus.map((s) => s.newStatus).join(' → '));
 
   // ── Step 10 — Delivered order drops off the active map ────────────────────
   const finalRes = await fetch(`${url}/api/drivers/active`, { headers: { Authorization: `Bearer ${adminTok}` } });

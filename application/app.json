@@ -22,6 +22,7 @@
       }
     },
     "android": {
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#E63946"
       },
@@ -43,6 +44,7 @@
       ]
     },
     "plugins": [
+        "expo-notifications",
       "expo-secure-store",
       "expo-audio",
       [
@@ -52,7 +54,8 @@
           "isAndroidBackgroundLocationEnabled": true,
           "isAndroidForegroundServiceEnabled": true
         }
-      ]
+      ],
+      "./plugins/withAndroidNativeFixes"
     ],
     "newArchEnabled": false,
     "extra": {

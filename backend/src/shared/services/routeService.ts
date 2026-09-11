@@ -1,4 +1,4 @@
-import { LatLng, AMRAVATI_BOUNDS, AMRAVATI_CENTER } from '../config/amravati';
+import { LatLng } from '../config/amravati';
 
 export interface RouteResult {
   polyline: LatLng[];      // ordered [{lat,lng}, ...]
@@ -10,7 +10,7 @@ export interface RouteResult {
 const OSRM_BASE = process.env.OSRM_URL ?? 'https://router.project-osrm.org';
 const NOMINATIM_BASE = process.env.NOMINATIM_URL ?? 'https://nominatim.openstreetmap.org';
 // Nominatim's usage policy requires an identifying User-Agent.
-const USER_AGENT = process.env.GEO_USER_AGENT ?? 'MedPet-Delivery/1.0 (Amravati)';
+const USER_AGENT = process.env.GEO_USER_AGENT ?? 'MedPet-Delivery/1.0';
 
 interface OsrmResponse {
   code: string;
@@ -53,22 +53,18 @@ interface NominatimHit {
 }
 
 /**
- * Geocode a free-text address to coordinates, biased to the Amravati bounding
- * box. Used only as a fallback when an order has no stored drop lat/lng.
+ * Geocode a free-text address to coordinates, biased (not restricted) to India.
+ * Used only as a fallback when an order has no stored drop lat/lng.
  * Returns null when nothing sensible is found.
  */
-export const geocodeAmravati = async (address: string): Promise<LatLng | null> => {
+export const geocodeAddress = async (address: string): Promise<LatLng | null> => {
   if (!address?.trim()) return null;
 
-  const { minLng, minLat, maxLng, maxLat } = AMRAVATI_BOUNDS;
   const params = new URLSearchParams({
-    q: `${address}, Amravati, Maharashtra, India`,
+    q: address,
     format: 'json',
     limit: '1',
     countrycodes: 'in',
-    // viewbox is left,top,right,bottom = minLng,maxLat,maxLng,minLat
-    viewbox: `${minLng},${maxLat},${maxLng},${minLat}`,
-    bounded: '1',
   });
 
   try {
@@ -83,6 +79,3 @@ export const geocodeAmravati = async (address: string): Promise<LatLng | null> =
     return null;
   }
 };
-
-/** Amravati centre — last-resort drop when geocoding also fails. */
-export const fallbackDrop = (): LatLng => ({ ...AMRAVATI_CENTER });

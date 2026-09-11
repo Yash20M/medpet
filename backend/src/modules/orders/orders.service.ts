@@ -1,6 +1,8 @@
 import db from '../../shared/config/database';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CouponsService } from '../coupons';
+import { TrackingService } from '../tracking/tracking.service';
+import { OrderEmailService } from './orders.email';
 import {
   Order, AdminOrder, OrderRow, OrderItemRow, OrderStatus, CreateOrderDto,
 } from './orders.types';
@@ -23,8 +25,14 @@ export const attachItems = async (orders: OrderRow[]): Promise<Order[]> => {
   );
   return orders.map((o) => {
     const orderItems = items.filter((i) => i.order_id === o.id);
+    // `SELECT o.*` (used throughout this module) pulls in delivery_otp_hash /
+    // delivery_otp_expires_at at the SQL level even though OrderRow doesn't
+    // declare them — strip them here, the one place every order row flows
+    // through, so the OTP hash never reaches an API response.
+    const row = o as OrderRow & { delivery_otp_hash?: unknown; delivery_otp_expires_at?: unknown };
+    const { delivery_otp_hash: _otpHash, delivery_otp_expires_at: _otpExpires, ...rest } = row;
     return {
-      ...o,
+      ...rest,
       latitude: toNum(o.latitude),
       longitude: toNum(o.longitude),
       items: orderItems,
@@ -76,11 +84,14 @@ export const OrdersService = {
 
       const total = subtotal + deliveryFee - discount;
 
+      // Orders are auto-confirmed on placement so they enter the delivery queue
+      // immediately (quick-commerce model). Admins can still cancel; 'pending'
+      // remains a valid status an admin can set manually if an order needs review.
       const { rows: orderRows } = await client.query<OrderRow>(
         `INSERT INTO orders
            (user_id, status, subtotal, delivery_fee, total, address, contact_phone, payment_method,
             latitude, longitude, coupon_id, discount)
-         VALUES ($1, 'pending', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         VALUES ($1, 'confirmed', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
          RETURNING *`,
         [
           userId, subtotal, deliveryFee, total,
@@ -125,6 +136,16 @@ export const OrdersService = {
         body: `Your order of ${lines.reduce((s, l) => s + l.quantity, 0)} item(s) for ₹${total} has been placed.`,
         type: 'order',
       });
+
+      // Best-effort: lets the customer see the store→drop route/ETA immediately,
+      // before any rider is assigned. Never fails order placement if OSRM is down.
+      TrackingService.precomputeRoute(order.id).catch(() => undefined);
+
+      // Best-effort, sent only after the transaction above has committed — an
+      // email failure must never roll back or fail an otherwise-successful order.
+      OrderEmailService.sendPlaced(order.id).catch((err) =>
+        console.error(`📧 Failed to send order-placed email for order ${order.id}:`, (err as Error).message)
+      );
 
       return (await attachItems([order]))[0];
     } catch (err) {
@@ -180,10 +201,17 @@ export const OrdersService = {
     }));
   },
 
-  async updateStatus(id: number, status: OrderStatus): Promise<Order | null> {
+  async updateStatus(id: number, status: OrderStatus, reason?: string): Promise<Order | null> {
+    const { rows: before } = await db.query<{ status: OrderStatus }>(
+      `SELECT status FROM orders WHERE id = $1`,
+      [id]
+    );
+    if (!before[0]) return null;
+    const oldStatus = before[0].status;
+
     const { rows } = await db.query<OrderRow>(
-      `UPDATE orders SET status = $1 WHERE id = $2 RETURNING *`,
-      [status, id]
+      `UPDATE orders SET status = $1, status_reason = COALESCE($2, status_reason) WHERE id = $3 RETURNING *`,
+      [status, reason?.trim() || null, id]
     );
     if (!rows[0]) return null;
     const order = (await attachItems(rows))[0];
@@ -194,6 +222,13 @@ export const OrdersService = {
       body: `Your order is now ${status}.`,
       type: 'order',
     });
+
+    // Best-effort, non-blocking. Idempotent — safe even if some other code
+    // path (delivery accept/markDelivered, tracking dispatch/ping) already
+    // fired the same email for this transition.
+    OrderEmailService.notifyStatusChange(id, oldStatus, status).catch((err) =>
+      console.error(`📧 Failed to send status-change email for order ${id}:`, (err as Error).message)
+    );
 
     return order;
   },

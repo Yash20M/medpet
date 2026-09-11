@@ -5,6 +5,7 @@ import React, {
 import * as SecureStore from 'expo-secure-store';
 import { authAPI, ApiError } from '../services/api';
 import { User } from '../types/auth.types';
+import { registerForPushNotificationsAsync } from '../services/notificationService';
 
 const USER_CACHE_KEY = 'authUser';
 
@@ -24,6 +25,13 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+// TEMPORARY, for manual FCM verification only (Firebase Console → send-to-token
+// test) — no backend endpoint exists yet to receive this. Replace with a real
+// API call once one does; never persist/send it anywhere else until then.
+const logPushToken = (token: string | null): void => {
+  if (token) console.log('[push] FCM device token:', token);
+};
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -68,6 +76,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     await SecureStore.setItemAsync('authToken', res.data.token);
     await cacheUser(res.data.user);
     setUser(res.data.user);
+    registerForPushNotificationsAsync().then(logPushToken).catch(() => undefined);
   }, []);
 
   const register = useCallback(async (name: string, email: string, password: string, phone?: string) => {
@@ -75,6 +84,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     await SecureStore.setItemAsync('authToken', res.data.token);
     await cacheUser(res.data.user);
     setUser(res.data.user);
+    registerForPushNotificationsAsync().then(logPushToken).catch(() => undefined);
   }, []);
 
   const logout = useCallback(async () => {

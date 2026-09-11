@@ -2,14 +2,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
 import { LivePhase, LatLng, OrderStatus } from '../services/api';
 
-// ─── Amravati geography (must match the backend constants) ──────────────────
-export const AMRAVATI_BOUNDS = { minLat: 20.85, maxLat: 21.01, minLng: 77.65, maxLng: 77.85 };
-export const AMRAVATI_CENTER: LatLng = { lat: 20.9320, lng: 77.7523 };
-
-/** True when a coordinate falls inside the Amravati delivery service area. */
-export const isWithinAmravati = (lat: number, lng: number): boolean =>
-  lat >= AMRAVATI_BOUNDS.minLat && lat <= AMRAVATI_BOUNDS.maxLat &&
-  lng >= AMRAVATI_BOUNDS.minLng && lng <= AMRAVATI_BOUNDS.maxLng;
+// ─── Map defaults (delivery is not restricted to any single city/region) ────
+/** Fallback pin position before the user has picked a location or granted GPS
+ *  — roughly the geographic centre of India, not a service-area boundary. */
+export const DEFAULT_MAP_CENTER: LatLng = { lat: 22.9734, lng: 78.6569 };
 
 // ─── Live-journey phases → UI config (label, icon, colour) ──────────────────
 type IconName = keyof typeof Ionicons.glyphMap;
@@ -58,9 +54,15 @@ export const phaseFromStatus = (status: OrderStatus, phase: LivePhase | null): L
 // ─── Projection: lat/lng → pixel coordinates inside a WxH canvas ────────────
 export interface BBox { minLat: number; maxLat: number; minLng: number; maxLng: number; }
 
+/** Small placeholder box around the default centre, used only when there are no points to frame. */
+const EMPTY_BBOX: BBox = {
+  minLat: DEFAULT_MAP_CENTER.lat - 0.05, maxLat: DEFAULT_MAP_CENTER.lat + 0.05,
+  minLng: DEFAULT_MAP_CENTER.lng - 0.05, maxLng: DEFAULT_MAP_CENTER.lng + 0.05,
+};
+
 /** Bounding box around a set of points, padded by `pad` fraction (0..1). */
 export const bboxOf = (points: LatLng[], pad = 0.18): BBox => {
-  if (points.length === 0) return { ...AMRAVATI_BOUNDS };
+  if (points.length === 0) return { ...EMPTY_BBOX };
   let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
   for (const p of points) {
     minLat = Math.min(minLat, p.lat); maxLat = Math.max(maxLat, p.lat);

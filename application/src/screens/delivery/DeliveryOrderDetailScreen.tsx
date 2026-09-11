@@ -14,6 +14,7 @@ import { DeliveryStackParamList } from '../../types/navigation.types';
 import { useTracking } from '../../hooks/useTracking';
 import { useDriverLocation } from '../../hooks/useDriverLocation';
 import VectorMap from '../../components/tracking/VectorMap';
+import DeliveryOtpModal from '../../components/delivery/DeliveryOtpModal';
 import { startBackgroundTracking, stopBackgroundTracking, isBackgroundTracking } from '../../services/backgroundLocation';
 
 type Props = {
@@ -75,25 +76,31 @@ const DeliveryOrderDetailScreen = ({ navigation, route }: Props) => {
     }
   };
 
+  const [otpModalVisible, setOtpModalVisible] = useState(false);
+  const [otpSubmitting, setOtpSubmitting] = useState(false);
+  const [otpError, setOtpError] = useState<string | null>(null);
+
   const deliver = () => {
     if (!order) return;
-    Alert.alert('Mark as delivered?', `Confirm delivery of order #${order.id}.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delivered', onPress: async () => {
-          setActing(true);
-          try {
-            await deliveryAPI.deliver(order.id);
-            await stopBackgroundTracking().catch(() => {});
-            setBgOn(false);
-            await load();
-          } catch (err) {
-            Alert.alert('Could not update', (err as ApiError).message);
-            await load();
-          } finally { setActing(false); }
-        },
-      },
-    ]);
+    setOtpError(null);
+    setOtpModalVisible(true);
+  };
+
+  const confirmDeliveryOtp = async (otp: string) => {
+    if (!order) return;
+    setOtpSubmitting(true);
+    setOtpError(null);
+    try {
+      await deliveryAPI.deliver(order.id, otp);
+      setOtpModalVisible(false);
+      await stopBackgroundTracking().catch(() => {});
+      setBgOn(false);
+      await load();
+    } catch (err) {
+      setOtpError((err as ApiError).message);
+    } finally {
+      setOtpSubmitting(false);
+    }
   };
 
   const [bgOn, setBgOn] = useState(false);
@@ -284,6 +291,15 @@ const DeliveryOrderDetailScreen = ({ navigation, route }: Props) => {
           )}
         </>
       )}
+
+      <DeliveryOtpModal
+        visible={otpModalVisible}
+        orderId={order?.id ?? null}
+        loading={otpSubmitting}
+        error={otpError}
+        onCancel={() => setOtpModalVisible(false)}
+        onConfirm={confirmDeliveryOtp}
+      />
     </View>
   );
 };

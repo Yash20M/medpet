@@ -63,7 +63,7 @@ const CartScreen = ({ navigation }: Props) => {
         />
       ) : (
         <>
-          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+          <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
             {items.map(({ product, quantity }) => (
               <View key={product.id} style={styles.itemCard}>
                 <MediaThumb uri={product.imageUrl} emoji={product.emoji} emojiSize={36} style={styles.itemImg} rounded={12} />
@@ -184,7 +184,8 @@ const styles = StyleSheet.create({
   iconBtn: { width: 32, padding: 4 },
   headerTitle: { fontSize: 18, fontWeight: '800', color: COLORS.white },
   headerSub: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 6, marginLeft: 4 },
-  scrollContent: { padding: 20 },
+  scroll: { flex: 1 },
+  scrollContent: { padding: 20, paddingBottom: 28 },
   itemCard: {
     flexDirection: 'row', backgroundColor: COLORS.white, borderRadius: 16, padding: 12, marginBottom: 12,
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2,

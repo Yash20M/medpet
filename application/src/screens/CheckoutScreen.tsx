@@ -16,10 +16,10 @@ import { COLORS, GRADIENTS } from '../theme/colors';
 import { RootStackParamList } from '../types/navigation.types';
 import { DELIVERY_SLOTS } from '../data/premium';
 import { loadDeliveryAddress, saveDeliveryAddress } from '../utils/deliveryAddress';
-import { isWithinAmravati } from '../utils/tracking';
 import SuccessOverlay from '../components/SuccessOverlay';
 import CouponOffers from '../components/CouponOffers';
 import MediaThumb from '../components/MediaThumb';
+import LocationPickerModal, { PickedLocation } from '../components/LocationPickerModal';
 
 type Props = { navigation: NativeStackNavigationProp<RootStackParamList, 'Checkout'> };
 
@@ -56,6 +56,7 @@ const CheckoutScreen = ({ navigation }: Props) => {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cod');
 
   const [locating, setLocating] = useState(false);
+  const [showPicker, setShowPicker] = useState(false);
   const [placing, setPlacing] = useState(false);
   const [success, setSuccess] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
@@ -109,17 +110,6 @@ const CheckoutScreen = ({ navigation }: Props) => {
       }
 
       const { latitude, longitude } = pos.coords;
-
-      // We deliver only in Amravati — reject a location outside the service area
-      // instead of pinning a far-away point that would break routing.
-      if (!isWithinAmravati(latitude, longitude)) {
-        Alert.alert(
-          'Outside delivery area',
-          `We currently deliver only in Amravati. Your current location (${latitude.toFixed(3)}, ${longitude.toFixed(3)}) is outside the city.\n\nPlease enter your Amravati delivery address manually.`
-        );
-        return;
-      }
-
       setCoords({ latitude, longitude });
 
       const places = await Location.reverseGeocodeAsync({ latitude, longitude });
@@ -132,6 +122,13 @@ const CheckoutScreen = ({ navigation }: Props) => {
     } finally {
       setLocating(false);
     }
+  };
+
+  /** Pin dropped on the map is the source of truth for where we deliver: its
+   *  coords drive routing, and its resolved address replaces the address text. */
+  const applyPickedLocation = (loc: PickedLocation): void => {
+    setCoords({ latitude: loc.latitude, longitude: loc.longitude });
+    if (loc.address) setAddress(loc.address);
   };
 
   const validateAddress = (): boolean => {
@@ -256,10 +253,17 @@ const CheckoutScreen = ({ navigation }: Props) => {
               <Text style={styles.locBtnText}>{locating ? 'Getting location…' : 'Use my current location'}</Text>
             </TouchableOpacity>
 
+            <TouchableOpacity style={styles.pinBtn} activeOpacity={0.85} onPress={() => setShowPicker(true)}>
+              <Ionicons name="map" size={18} color={COLORS.white} />
+              <Text style={styles.pinBtnText}>
+                {coords ? 'Adjust pin on map' : 'Drop a pin on your house'}
+              </Text>
+            </TouchableOpacity>
+
             {coords && (
               <View style={styles.coordChip}>
                 <Ionicons name="location" size={13} color={COLORS.success} />
-                <Text style={styles.coordText}>
+                <Text style={styles.coordText} numberOfLines={1}>
                   Location pinned ({coords.latitude.toFixed(4)}, {coords.longitude.toFixed(4)})
                 </Text>
               </View>
@@ -282,6 +286,11 @@ const CheckoutScreen = ({ navigation }: Props) => {
               numberOfLines={4}
               textAlignVertical="top"
             />
+            {coords && (
+              <Text style={styles.addrHint}>
+                Add your house / flat no. above so the rider finds you faster.
+              </Text>
+            )}
           </View>
         )}
 
@@ -441,6 +450,13 @@ const CheckoutScreen = ({ navigation }: Props) => {
         </TouchableOpacity>
       </View>
 
+      <LocationPickerModal
+        visible={showPicker}
+        initial={coords}
+        onClose={() => setShowPicker(false)}
+        onConfirm={applyPickedLocation}
+      />
+
       <SuccessOverlay
         visible={success}
         title="Order placed! 🐾"
@@ -493,6 +509,11 @@ const styles = StyleSheet.create({
     borderWidth: 1.5, borderColor: COLORS.primary, borderRadius: 12, paddingVertical: 12, marginBottom: 6,
   },
   locBtnText: { color: COLORS.primary, fontWeight: '700', fontSize: 14 },
+  pinBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    backgroundColor: COLORS.primary, borderRadius: 12, paddingVertical: 12, marginTop: 8,
+  },
+  pinBtnText: { color: COLORS.white, fontWeight: '800', fontSize: 14, flexShrink: 1 },
   coordChip: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
   coordText: { fontSize: 12, color: COLORS.success, fontWeight: '600' },
   label: { fontSize: 12, fontWeight: '700', color: COLORS.gray, marginTop: 14, marginBottom: 6 },
@@ -501,6 +522,7 @@ const styles = StyleSheet.create({
     paddingVertical: Platform.OS === 'ios' ? 12 : 9, fontSize: 14, color: COLORS.black, backgroundColor: COLORS.white,
   },
   textarea: { height: 92, paddingTop: 10 },
+  addrHint: { fontSize: 11, color: COLORS.gray, marginTop: 6, lineHeight: 15 },
   slotRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1.5, borderColor: COLORS.grayBorder,
     borderRadius: 12, padding: 14, marginBottom: 10,

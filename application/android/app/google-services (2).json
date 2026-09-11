@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "24002179423",
+    "project_id": "medpet-fa2a3",
+    "storage_bucket": "medpet-fa2a3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:24002179423:android:09299483c35ce149cd86ea",
+        "android_client_info": {
+          "package_name": "com.medpet.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAGtQPpm4yfMUM3vYRumrVOh9y5Frkr7_M"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

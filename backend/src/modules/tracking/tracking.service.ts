@@ -1,9 +1,11 @@
 import db from '../../shared/config/database';
 import { NotificationsService } from '../notifications/notifications.service';
+import { OrderEmailService } from '../orders/orders.email';
+import { OrderStatus } from '../orders/orders.types';
 import {
-  LatLng, STORE_LOCATION, isWithinAmravati,
+  LatLng, STORE_LOCATION, CITY_SPEED_KMH,
 } from '../../shared/config/amravati';
-import { fetchRoute, geocodeAmravati, fallbackDrop } from '../../shared/services/routeService';
+import { fetchRoute, geocodeAddress } from '../../shared/services/routeService';
 import { snapToRoute } from '../../shared/services/snapToRoute';
 import { etaMinutes } from '../../shared/services/etaCalculator';
 import { haversineKm, toTuple, fromTuple, LatLngTuple } from '../../shared/services/geo';
@@ -18,9 +20,11 @@ const toNum = (v: unknown): number | null =>
 const iso = (v: unknown): string | null =>
   v instanceof Date ? v.toISOString() : (v as string | null) ?? null;
 
-export const orderNumber = (id: number): string => `AMR-${String(id).padStart(4, '0')}`;
+export const orderNumber = (id: number): string => `ORD-${String(id).padStart(4, '0')}`;
 
 const DEBOUNCE_MS = 2000;
+// A ping that snaps more than this far from the cached route is treated as bogus GPS.
+const MAX_PING_DEVIATION_KM = 3;
 
 /** Row shape used when hydrating a full tracking state. */
 interface TrackingRow {
@@ -114,7 +118,14 @@ const buildState = (r: TrackingRow): TrackingState => {
   };
 };
 
-/** Forward-only phase machine driven by the thresholds in the spec (1C step 4). */
+/**
+ * Forward-only phase machine driven by the thresholds in the spec (1C step 4).
+ * Caps out at 'nearby' — GPS proximity alone no longer auto-completes a
+ * delivery. Reaching the doorstep is a strong hint, not proof of handoff, so
+ * the final 'delivered' transition requires the customer's OTP (see
+ * DeliveryOtpService / DeliveryService.markDelivered) or an explicit admin
+ * override (TrackingController.setPhase, admin-only for this phase).
+ */
 const computePhase = (
   current: LivePhase | null,
   distToPickupKm: number,
@@ -129,7 +140,6 @@ const computePhase = (
   if (distToPickupKm < 0.1) bump('picked');                       // <100 m of pickup
   if (progress > 0.05 && distToPickupKm > 0.15) bump('on_the_way'); // moving away from pickup
   if (distToDropKm < 0.5) bump('nearby');                          // <500 m of drop
-  if (distToDropKm < 0.05) bump('delivered');                      // <50 m of drop
 
   return rank(cand) >= rank(cur) ? cand : cur;
 };
@@ -166,6 +176,42 @@ export const TrackingService = {
   },
 
   /**
+   * Compute and cache the store→drop route as soon as an order exists — before
+   * any rider is assigned — so the customer can see pickup/drop pins and a
+   * planned route/ETA while the order is still being packed (Blinkit-style).
+   * Deliberately leaves delivery_partner_id/status/tracking_phase untouched;
+   * `dispatch()` still owns those once a rider actually accepts.
+   */
+  async precomputeRoute(orderId: number): Promise<void> {
+    const { rows } = await db.query<{ latitude: string | null; longitude: string | null; address: string }>(
+      `SELECT latitude, longitude, address FROM orders WHERE id = $1`,
+      [orderId]
+    );
+    const order = rows[0];
+    if (!order) return;
+
+    const pickup: LatLng = STORE_LOCATION;
+    let drop: LatLng | null = pointOrNull(order.latitude, order.longitude);
+    if (!drop) drop = (await geocodeAddress(order.address)) ?? { ...STORE_LOCATION };
+
+    const route = await fetchRoute(pickup, drop);
+    const tuples = route.polyline.map(toTuple);
+
+    await db.query(
+      `UPDATE orders SET
+         pickup_lat        = $2,
+         pickup_lng        = $3,
+         latitude          = COALESCE(latitude, $4),
+         longitude         = COALESCE(longitude, $5),
+         route_polyline    = $6::jsonb,
+         route_distance_km = $7,
+         route_eta_minutes = $8
+       WHERE id = $1`,
+      [orderId, pickup.lat, pickup.lng, drop.lat, drop.lng, JSON.stringify(tuples), route.distanceKm, route.estimatedMinutes]
+    );
+  },
+
+  /**
    * Assign a driver, resolve pickup/drop, fetch the OSRM route ONCE and cache it.
    * Idempotent-ish: re-dispatching refreshes the route without resetting progress.
    */
@@ -179,7 +225,7 @@ export const TrackingService = {
 
     const pickup: LatLng = dto.pickup ?? STORE_LOCATION;
     let drop: LatLng | null = dto.drop ?? pointOrNull(order.latitude, order.longitude);
-    if (!drop) drop = (await geocodeAmravati(order.address)) ?? fallbackDrop();
+    if (!drop) drop = (await geocodeAddress(order.address)) ?? { ...STORE_LOCATION };
 
     const route = await fetchRoute(pickup, drop);
     const tuples = route.polyline.map(toTuple);
@@ -213,24 +259,31 @@ export const TrackingService = {
       ]
     );
 
+    if (becomesShipped) {
+      OrderEmailService.notifyStatusChange(orderId, order.status as OrderStatus, 'shipped').catch((err) =>
+        console.error(`📧 Failed to send out-for-delivery email for order ${orderId}:`, (err as Error).message)
+      );
+    }
+
     return (await this.getTracking(orderId))!;
   },
 
   /**
-   * The GPS ping pipeline: validate → debounce → bounds → snap → ETA → phase →
+   * The GPS ping pipeline: validate → debounce → snap → deviation → ETA → phase →
    * persist. Returns what (if anything) should be broadcast. Never calls OSRM.
    */
   async processPing(ping: DriverPing): Promise<PingResult> {
     const { rows } = await db.query<{
       status: string; delivery_partner_id: number | null;
       route_polyline: LatLngTuple[] | null;
+      route_distance_km: string | null; route_eta_minutes: number | null;
       pickup_lat: string | null; pickup_lng: string | null;
       latitude: string | null; longitude: string | null;
       tracking_phase: LivePhase | null; tracking_last_ping_at: Date | null;
       user_id: number;
     }>(
-      `SELECT status, delivery_partner_id, route_polyline, pickup_lat, pickup_lng,
-              latitude, longitude, tracking_phase, tracking_last_ping_at, user_id
+      `SELECT status, delivery_partner_id, route_polyline, route_distance_km, route_eta_minutes,
+              pickup_lat, pickup_lng, latitude, longitude, tracking_phase, tracking_last_ping_at, user_id
        FROM orders WHERE id = $1`,
       [ping.orderId]
     );
@@ -246,20 +299,35 @@ export const TrackingService = {
     }
 
     const raw: LatLng = { lat: ping.lat, lng: ping.lng };
-    if (!isWithinAmravati(raw)) return { processed: false, reason: 'out-of-bounds' };
-
     const poly = o.route_polyline.map(fromTuple);
     const snap = snapToRoute(poly, raw);
+    // A ping that lands nowhere near this order's own route is bogus GPS —
+    // checked against the route itself so it works for a delivery in any city,
+    // not just a fixed global bounding box.
+    if (snap.distanceToRouteKm > MAX_PING_DEVIATION_KM) {
+      return { processed: false, reason: 'out-of-bounds' };
+    }
+
     const pickup = pointOrNull(o.pickup_lat, o.pickup_lng) ?? STORE_LOCATION;
     const drop = pointOrNull(o.latitude, o.longitude) ?? poly[poly.length - 1];
 
     const distToPickup = haversineKm(raw, pickup);
     const distToDrop = haversineKm(raw, drop);
-    const eta = etaMinutes(snap.distanceRemainingKm);
+    // Derive the live ETA speed from this order's own OSRM-estimated route
+    // (distance/duration) rather than a flat "city speed" — a fixed 18 km/h
+    // wildly under/over-estimates ETA once trips aren't all short in-city hops.
+    const routeDistanceKm = toNum(o.route_distance_km);
+    const routeHours = (o.route_eta_minutes ?? 0) / 60;
+    const routeSpeedKmh =
+      routeDistanceKm && routeHours > 0 ? routeDistanceKm / routeHours : CITY_SPEED_KMH;
+    const eta = etaMinutes(snap.distanceRemainingKm, routeSpeedKmh);
 
     const oldPhase = o.tracking_phase;
+    // Capped at 'nearby' by computePhase — GPS proximity is a strong hint the
+    // driver has arrived, not proof of handoff. The order only reaches
+    // 'delivered' via the OTP-confirmed DeliveryService.markDelivered (or an
+    // explicit admin override), never automatically from a ping.
     const newPhase = computePhase(oldPhase, distToPickup, distToDrop, snap.progress);
-    const delivered = newPhase === 'delivered' && o.status === 'shipped';
 
     const heading = ping.heading ?? 0;
     const speed = ping.speed ?? 0;
@@ -273,25 +341,13 @@ export const TrackingService = {
          tracking_last_ping_at = NOW(),
          tracking_eta_minutes = $7,
          tracking_distance_remaining_km = $8,
-         tracking_progress = $9,
-         status = CASE WHEN $10 THEN 'delivered' ELSE status END,
-         tracking_delivered_at = CASE WHEN $10 THEN NOW() ELSE tracking_delivered_at END
+         tracking_progress = $9
        WHERE id = $1`,
       [
         ping.orderId, snap.snapped.lat, snap.snapped.lng, heading, speed,
         newPhase, eta, Number(snap.distanceRemainingKm.toFixed(2)), Number(snap.progress.toFixed(4)),
-        delivered,
       ]
     );
-
-    if (delivered) {
-      await NotificationsService.create({
-        userId: o.user_id,
-        title: `Order #${ping.orderId} delivered ✅`,
-        body: 'Your order has arrived. Thanks for shopping with MedPet!',
-        type: 'order',
-      }).catch(() => undefined);
-    }
 
     const broadcast: LocationBroadcast = {
       orderId: ping.orderId,
@@ -301,7 +357,7 @@ export const TrackingService = {
       distanceRemaining: Number(snap.distanceRemainingKm.toFixed(2)),
       progress: Number(snap.progress.toFixed(4)),
       phase: newPhase,
-      status: delivered ? 'delivered' : o.status,
+      status: o.status,
       timestamp: ts,
     };
 
@@ -341,6 +397,10 @@ export const TrackingService = {
         body: 'Your order has arrived. Thanks for shopping with MedPet!',
         type: 'order',
       }).catch(() => undefined);
+
+      OrderEmailService.notifyStatusChange(orderId, o.status as OrderStatus, 'delivered').catch((err) =>
+        console.error(`📧 Failed to send order-delivered email for order ${orderId}:`, (err as Error).message)
+      );
     }
 
     const state = (await this.getTracking(orderId))!;

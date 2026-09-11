@@ -431,6 +431,47 @@ const SQL_ORDERS = `
     quantity    INTEGER NOT NULL CHECK (quantity > 0)
   );
   CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
+
+  -- Optional admin-supplied reason shown on the ORDER_REJECTED/ORDER_CANCELLED emails.
+  ALTER TABLE orders ADD COLUMN IF NOT EXISTS status_reason TEXT;
+
+  -- Delivery-handoff OTP: the customer is emailed the plaintext code once
+  -- (never persisted in plain text — only its hash lives here); the delivery
+  -- partner must enter it correctly to complete the delivery.
+  ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_otp_hash       TEXT;
+  ALTER TABLE orders ADD COLUMN IF NOT EXISTS delivery_otp_expires_at TIMESTAMPTZ;
+`;
+
+// Idempotency + audit log for every transactional email the API sends. The
+// partial unique index on (order_id, type) is what EmailService's
+// `ON CONFLICT ... DO NOTHING` relies on to guarantee an order-lifecycle email
+// is never sent twice for the same order.
+const SQL_EMAIL_NOTIFICATIONS = `
+  CREATE TABLE IF NOT EXISTS email_notifications (
+    id                   SERIAL PRIMARY KEY,
+    user_id              INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    order_id             INTEGER REFERENCES orders(id) ON DELETE CASCADE,
+    type                 VARCHAR(30) NOT NULL CHECK (type IN (
+                           'order_placed', 'order_accepted', 'order_rejected', 'order_cancelled',
+                           'order_dispatched', 'out_for_delivery', 'order_delivered',
+                           'password_reset', 'otp'
+                         )),
+    recipient            VARCHAR(255) NOT NULL,
+    subject              VARCHAR(255) NOT NULL,
+    status               VARCHAR(10) NOT NULL DEFAULT 'pending'
+                         CHECK (status IN ('pending', 'sending', 'sent', 'failed')),
+    attempts             INTEGER NOT NULL DEFAULT 0,
+    provider_message_id  TEXT,
+    error                TEXT,
+    sent_at              TIMESTAMPTZ,
+    failed_at            TIMESTAMPTZ,
+    created_at           TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at           TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS uq_email_notifications_order_type
+    ON email_notifications(order_id, type) WHERE order_id IS NOT NULL;
+  CREATE INDEX IF NOT EXISTS idx_email_notifications_user ON email_notifications(user_id);
+  CREATE INDEX IF NOT EXISTS idx_email_notifications_status ON email_notifications(status);
 `;
 
 async function migrate(): Promise<void> {
@@ -454,10 +495,12 @@ async function migrate(): Promise<void> {
     await client.query(SQL_SUPPORT_MESSAGES);
     await client.query(SQL_ORDERS);
     await client.query(SQL_COUPON_REDEMPTIONS);
+    await client.query(SQL_EMAIL_NOTIFICATIONS);
 
     for (const t of [
       'users', 'categories', 'products', 'offers', 'coupons', 'pets',
       'cart_items', 'orders', 'support_tickets', 'health_tips', 'app_settings',
+      'email_notifications',
     ]) {
       await client.query(updatedAtTrigger(t));
     }

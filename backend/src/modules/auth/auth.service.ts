@@ -2,8 +2,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import db from '../../shared/config/database';
-import { Mailer } from '../../shared/utils/mailer';
-import { resetPasswordEmail } from '../../shared/utils/emailTemplates';
+import { EmailService } from '../../shared/email/email.service';
 import {
   RegisterDto, LoginDto, UpdateProfileDto,
   AuthPayload, AuthUser, UserRow,
@@ -124,7 +123,12 @@ export const AuthService = {
 
     const raw = await issueResetToken(user.id);
     const url = buildResetUrl(raw);
-    await Mailer.send({ to: user.email, ...resetPasswordEmail(user.name, url) });
+    const expiresAt = new Date(Date.now() + RESET_TOKEN_TTL_MS);
+    // Fire-and-forget — never log the raw token; EmailService's own logs mask
+    // the recipient and never touch the URL/body.
+    EmailService.sendPasswordResetEmail(user.id, user.name, user.email, url, expiresAt).catch((err) =>
+      console.error(`📧 Failed to send password-reset email for user ${user.id}:`, (err as Error).message)
+    );
   },
 
   /** Consume a reset token and set a new password. Also (re)activates the account. */

@@ -22,7 +22,7 @@ const SUBTITLES: Record<Tab, string> = {
   products: 'Manage your medicines & products',
   inventory: 'Track stock levels & restock alerts',
   orders: 'View, track and fulfil customer orders',
-  livemap: 'Real-time delivery tracking across Amravati',
+  livemap: 'Real-time delivery tracking',
   categories: 'Organise categories & sub-categories',
   offers: 'Promotions & home banners',
   coupons: 'Discount codes and promotional conditions',

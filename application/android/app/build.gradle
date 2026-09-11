@@ -130,6 +130,14 @@ android {
     androidResources {
         ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
     }
+    externalNativeBuild {
+        cmake {
+            // Project lives deep under OneDrive, and CMake/ninja object paths for the
+            // codegen'd New Architecture components blow past Windows' 260-char MAX_PATH.
+            // Stage the CMake/ninja build outside the project tree with a short path.
+            buildStagingDirectory = file("C:/rnb/medpet")
+        }
+    }
 }
 
 // Apply static values from `gradle.properties` to the `android.packagingOptions`

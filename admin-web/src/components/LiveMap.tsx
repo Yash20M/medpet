@@ -1,32 +1,29 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
-import { Truck, MapPin, Wifi, WifiOff } from 'lucide-react';
+import { Truck, Wifi, WifiOff, AlertTriangle } from 'lucide-react';
 import { api } from '../api';
 import DeliveryAnalytics from './DeliveryAnalytics';
 import { useAdminSocket } from '../hooks/useAdminSocket';
+import { loadMappls } from '../services/mappls/mapplsLoader';
+import { hasMapplsKey } from '../config/mappls';
 import {
   ActiveDriver, LocationBroadcast, StatusChange, LivePhase, PHASE_COLOR, PHASE_LABEL,
 } from '../liveTypes';
 
-const AMRAVATI_CENTER: [number, number] = [20.9320, 77.7523];
-const AMRAVATI_BOUNDS: [[number, number], [number, number]] = [[20.85, 77.65], [21.01, 77.85]];
+const MAP_CONTAINER_ID = 'medpet-live-map';
+// Roughly the geographic centre of India — just a starting view before any
+// order markers exist; delivery isn't restricted to any single city/region.
+const DEFAULT_MAP_CENTER = { lat: 22.9734, lng: 78.6569 };
 
 const phaseColor = (phase: LivePhase | null): string => (phase ? PHASE_COLOR[phase] : '#94A3B8');
 
-/** Leaflet divIcon: a coloured pin with the order number label + scooter glyph. */
-const makeIcon = (phase: LivePhase | null, label: string): L.DivIcon => {
+/** Custom HTML marker: a coloured pin with the order number label + scooter glyph. */
+const markerHtml = (phase: LivePhase | null, label: string): string => {
   const color = phaseColor(phase);
-  return L.divIcon({
-    className: 'medpet-marker',
-    html: `
-      <div style="display:flex;flex-direction:column;align-items:center;transform:translateY(-6px)">
-        <div style="background:${color};color:#fff;font:700 10px system-ui;padding:2px 7px;border-radius:999px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.35);margin-bottom:2px">${label}</div>
-        <div style="width:26px;height:26px;border-radius:50%;background:#fff;border:3px solid ${color};display:grid;place-items:center;box-shadow:0 3px 8px rgba(0,0,0,.4);font-size:13px">🛵</div>
-      </div>`,
-    iconSize: [26, 40],
-    iconAnchor: [13, 34],
-  });
+  return `
+    <div style="display:flex;flex-direction:column;align-items:center;transform:translateY(-34px)">
+      <div style="background:${color};color:#fff;font:700 10px system-ui;padding:2px 7px;border-radius:999px;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.35);margin-bottom:2px">${label}</div>
+      <div style="width:26px;height:26px;border-radius:50%;background:#fff;border:3px solid ${color};display:grid;place-items:center;box-shadow:0 3px 8px rgba(0,0,0,.4);font-size:13px">🛵</div>
+    </div>`;
 };
 
 const popupHtml = (d: ActiveDriver): string => `
@@ -39,49 +36,74 @@ const popupHtml = (d: ActiveDriver): string => `
   </div>`;
 
 export default function LiveMap() {
-  const mapRef = useRef<L.Map | null>(null);
+  const mapRef = useRef<any>(null);
+  const mapplsRef = useRef<any>(null);
   const mapDivRef = useRef<HTMLDivElement | null>(null);
-  const markersRef = useRef<Record<number, L.Marker>>({});
+  const markersRef = useRef<Record<number, any>>({});
   const [drivers, setDrivers] = useState<Record<number, ActiveDriver>>({});
   const [connected, setConnected] = useState(false);
+  const [mapError, setMapError] = useState<string | null>(null);
 
-  // ── Initialise the Leaflet map once ───────────────────────────────────────
+  // ── Initialise the Mappls map once ────────────────────────────────────────
   useEffect(() => {
+    if (!hasMapplsKey()) { setMapError('Map is not configured (missing VITE_MAPPLS_STATIC_KEY).'); return; }
     if (mapRef.current || !mapDivRef.current) return;
-    const map = L.map(mapDivRef.current, {
-      center: AMRAVATI_CENTER, zoom: 13, minZoom: 12, maxZoom: 18,
-      maxBounds: L.latLngBounds(AMRAVATI_BOUNDS), maxBoundsViscosity: 0.9,
-      zoomControl: true, attributionControl: true,
-    });
-    // Free CARTO dark tiles — no API key.
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      subdomains: 'abcd', maxZoom: 19,
-      attribution: '&copy; OpenStreetMap &copy; CARTO',
-    }).addTo(map);
-    mapRef.current = map;
-    return () => { map.remove(); mapRef.current = null; markersRef.current = {}; };
+    let cancelled = false;
+
+    loadMappls()
+      .then((mappls) => {
+        if (cancelled || !mapDivRef.current) return;
+        mapplsRef.current = mappls;
+        // The SDK wants the container's id (it does its own lookup internally),
+        // not the element itself — passing the element silently fails to bind.
+        // Note: mappls.fitBounds() was tried here to frame the active markers,
+        // but it fires before the map's internal view is actually settled and
+        // corrupts the zoom/center (collapses to a near-global view) — so this
+        // relies solely on the constructor's center/zoom, which is stable.
+        const map = new mappls.Map(MAP_CONTAINER_ID, {
+          center: DEFAULT_MAP_CENTER, zoom: 5, zoomControl: true,
+        });
+        mapRef.current = map;
+      })
+      .catch((err: Error) => {
+        // A map failure must never take down the rest of the admin console —
+        // surface it inline instead of leaving an uncaught rejection/crash.
+        if (!cancelled) setMapError(err.message || 'Failed to load the map.');
+      });
+
+    return () => {
+      cancelled = true;
+      // Best-effort teardown: the SDK exposes no documented map.destroy(), so
+      // clear the container to drop the previous instance's canvas/DOM before
+      // a StrictMode remount creates a fresh one.
+      Object.values(markersRef.current).forEach((m: any) => m.remove?.());
+      markersRef.current = {};
+      if (mapDivRef.current) mapDivRef.current.innerHTML = '';
+      mapRef.current = null;
+    };
   }, []);
 
   // ── Upsert a marker for one delivery ──────────────────────────────────────
+  // The SDK doesn't document an in-place "update HTML content" call for a
+  // custom-html marker, so an update recreates it rather than risking stale
+  // content silently sticking around.
   const upsertMarker = useCallback((d: ActiveDriver) => {
     const map = mapRef.current;
-    if (!map || d.lat == null || d.lng == null) return;
-    const existing = markersRef.current[d.orderId];
-    if (existing) {
-      existing.setLatLng([d.lat, d.lng]);
-      existing.setIcon(makeIcon(d.phase, d.orderNumber));
-      existing.setPopupContent(popupHtml(d));
-    } else {
-      const m = L.marker([d.lat, d.lng], { icon: makeIcon(d.phase, d.orderNumber) })
-        .addTo(map)
-        .bindPopup(popupHtml(d));
-      markersRef.current[d.orderId] = m;
-    }
+    const mappls = mapplsRef.current;
+    if (!map || !mappls || d.lat == null || d.lng == null) return;
+    markersRef.current[d.orderId]?.remove?.();
+    const marker = new mappls.Marker({
+      map,
+      position: { lat: d.lat, lng: d.lng },
+      html: markerHtml(d.phase, d.orderNumber),
+      popupHtml: popupHtml(d),
+    });
+    markersRef.current[d.orderId] = marker;
   }, []);
 
   const removeMarker = useCallback((orderId: number) => {
-    const m = markersRef.current[orderId];
-    if (m) { m.remove(); delete markersRef.current[orderId]; }
+    markersRef.current[orderId]?.remove?.();
+    delete markersRef.current[orderId];
   }, []);
 
   // ── Full refresh (initial load + 15s prune of finished deliveries) ────────
@@ -100,10 +122,11 @@ export default function LiveMap() {
   }, [upsertMarker, removeMarker]);
 
   useEffect(() => {
+    if (mapError) return;
     refresh();
     const t = setInterval(refresh, 15_000);
     return () => clearInterval(t);
-  }, [refresh]);
+  }, [refresh, mapError]);
 
   // ── Live socket updates ───────────────────────────────────────────────────
   const onLocation = useCallback((p: LocationBroadcast) => {
@@ -136,8 +159,8 @@ export default function LiveMap() {
 
   const focus = (d: ActiveDriver): void => {
     if (d.lat == null || d.lng == null || !mapRef.current) return;
-    mapRef.current.flyTo([d.lat, d.lng], 16, { duration: 0.6 });
-    markersRef.current[d.orderId]?.openPopup();
+    mapRef.current.panTo({ lat: d.lat, lng: d.lng });
+    mapRef.current.setZoom(16);
   };
 
   const list = Object.values(drivers);
@@ -146,7 +169,14 @@ export default function LiveMap() {
     <div className="space-y-4">
       <DeliveryAnalytics />
       <div className="rounded-2xl overflow-hidden border relative" style={{ borderColor: 'var(--border)', height: '66vh' }}>
-      <div ref={mapDivRef} className="absolute inset-0" style={{ background: '#0b1220' }} />
+      <div ref={mapDivRef} id={MAP_CONTAINER_ID} className="absolute inset-0" style={{ background: '#0b1220' }} />
+
+      {mapError && (
+        <div className="absolute inset-0 z-[600] flex flex-col items-center justify-center gap-2 bg-[#0b1220] text-center px-6">
+          <AlertTriangle size={22} className="text-amber-400" />
+          <span className="text-sm font-semibold text-white/90">{mapError}</span>
+        </div>
+      )}
 
       {/* Live deliveries panel */}
       <div className="absolute top-4 left-4 z-[500] w-72 max-h-[calc(78vh-2rem)] flex flex-col rounded-xl bg-white/95 backdrop-blur shadow-float border"
@@ -195,11 +225,6 @@ export default function LiveMap() {
             </span>
           ))}
         </div>
-      </div>
-
-      {/* City badge */}
-      <div className="absolute bottom-4 right-4 z-[500] flex items-center gap-1.5 rounded-full bg-white/90 px-3 py-1.5 shadow-float text-[12px] font-bold text-ink">
-        <MapPin size={13} className="text-brand-600" /> Amravati
       </div>
       </div>
     </div>

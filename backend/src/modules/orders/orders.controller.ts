@@ -35,7 +35,9 @@ export const OrdersController = {
   },
 
   async updateStatus(req: Request, res: Response): Promise<void> {
-    const data = await OrdersService.updateStatus(Number(req.params.id), req.body.status as OrderStatus);
+    const data = await OrdersService.updateStatus(
+      Number(req.params.id), req.body.status as OrderStatus, req.body.reason as string | undefined
+    );
     if (!data) { sendError(res, 'Order not found.', 404); return; }
     sendSuccess(res, { message: 'Order status updated.', data });
   },

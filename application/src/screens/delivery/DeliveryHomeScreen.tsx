@@ -12,6 +12,7 @@ import { useAuth } from '../../context/AuthContext';
 import { deliveryAPI, ApiDeliveryOrder, DeliverySummary, ApiError } from '../../services/api';
 import { COLORS, GRADIENTS } from '../../theme/colors';
 import { DeliveryStackParamList } from '../../types/navigation.types';
+import DeliveryOtpModal from '../../components/delivery/DeliveryOtpModal';
 
 type Props = { navigation: NativeStackNavigationProp<DeliveryStackParamList, 'DeliveryHome'> };
 
@@ -89,26 +90,28 @@ const DeliveryHomeScreen = ({ navigation }: Props) => {
     }
   };
 
+  const [otpOrder, setOtpOrder] = useState<ApiDeliveryOrder | null>(null);
+  const [otpSubmitting, setOtpSubmitting] = useState(false);
+  const [otpError, setOtpError] = useState<string | null>(null);
+
   const markDelivered = (order: ApiDeliveryOrder) => {
-    Alert.alert('Mark as delivered?', `Confirm delivery of order #${order.id} to ${order.user_name}.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delivered',
-        style: 'default',
-        onPress: async () => {
-          setActingId(order.id);
-          try {
-            await deliveryAPI.deliver(order.id);
-            await load();
-          } catch (err) {
-            Alert.alert('Could not update', (err as ApiError).message);
-            await load();
-          } finally {
-            setActingId(null);
-          }
-        },
-      },
-    ]);
+    setOtpError(null);
+    setOtpOrder(order);
+  };
+
+  const confirmDeliveryOtp = async (otp: string) => {
+    if (!otpOrder) return;
+    setOtpSubmitting(true);
+    setOtpError(null);
+    try {
+      await deliveryAPI.deliver(otpOrder.id, otp);
+      setOtpOrder(null);
+      await load();
+    } catch (err) {
+      setOtpError((err as ApiError).message);
+    } finally {
+      setOtpSubmitting(false);
+    }
   };
 
   const confirmLogout = () => {
@@ -193,7 +196,7 @@ const DeliveryHomeScreen = ({ navigation }: Props) => {
                 <PrimaryAction
                   label="Mark delivered"
                   icon="checkmark-done-circle"
-                  loading={actingId === o.id}
+                  loading={false}
                   onPress={() => markDelivered(o)}
                 />
               }
@@ -213,6 +216,15 @@ const DeliveryHomeScreen = ({ navigation }: Props) => {
           ))}
         </ScrollView>
       )}
+
+      <DeliveryOtpModal
+        visible={!!otpOrder}
+        orderId={otpOrder?.id ?? null}
+        loading={otpSubmitting}
+        error={otpError}
+        onCancel={() => setOtpOrder(null)}
+        onConfirm={confirmDeliveryOtp}
+      />
     </View>
   );
 };

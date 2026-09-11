@@ -1,7 +1,8 @@
 /**
  * Delivery-PARTNER end-to-end: the real rider journey.
  *   accept (auto-caches OSRM route) → live GPS over socket → customer tracks →
- *   auto-delivered at the drop → shows in the partner's completed list.
+ *   reaches 'nearby' at the drop → partner confirms the customer's delivery
+ *   OTP → shows in the partner's completed list.
  *
  * Run:  npx ts-node -T tests/partner.test.ts
  */
@@ -9,6 +10,7 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import http from 'http';
+import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { io as ioClient, Socket } from 'socket.io-client';
@@ -16,6 +18,10 @@ import createApp from '../src/app';
 import { attachSockets } from '../src/shared/realtime/socket';
 import { LatLng } from '../src/shared/config/amravati';
 import db from '../src/shared/config/database';
+
+// Matches DeliveryOtpService's own hashing — lets this test seed a known OTP
+// directly rather than needing to read a real inbox.
+const hashOtp = (otp: string): string => crypto.createHash('sha256').update(otp).digest('hex');
 
 let passed = 0, failed = 0;
 const ok = (n: string, c: boolean, extra = ''): void => {
@@ -114,12 +120,30 @@ async function run(): Promise<void> {
   ok('customer received live location events', locs.length >= N - 1, `${locs.length} events`);
   const etas = locs.map((l) => l.eta);
   ok('ETA counts down (last ≤ first)', etas[etas.length - 1] <= etas[0], `${etas[0]} → ${etas[etas.length - 1]} min`);
-  ok('phases progressed to delivered', phases.includes('delivered'), phases.join(' → '));
+  // GPS proximity alone caps out at 'nearby' — the customer's OTP is required
+  // to actually complete the delivery (see DeliveryOtpService).
+  ok('phases progressed to nearby via GPS', phases.includes('nearby'), phases.join(' → '));
+  ok('GPS alone never auto-delivers the order', !phases.includes('delivered'));
 
-  // ── 4) Order is delivered + shows in the partner's completed list ─────────
-  console.log('\n4) Auto-delivered + reflected in partner dashboards');
+  const trackPreOtp = await api(url, `/api/orders/${orderId}/tracking`, partnerTok);
+  ok('order still shipped, awaiting OTP confirmation', trackPreOtp.json.data.status === 'shipped');
+
+  // ── 4) Partner confirms the customer's delivery OTP ────────────────────────
+  console.log('\n4) Partner confirms delivery via the customer\'s OTP');
+  const TEST_OTP = '135790';
+  await db.query(
+    `UPDATE orders SET delivery_otp_hash = $1, delivery_otp_expires_at = NOW() + INTERVAL '1 hour' WHERE id = $2`,
+    [hashOtp(TEST_OTP), orderId]
+  );
+
+  const wrongOtp = await api(url, `/api/delivery/orders/${orderId}/deliver`, partnerTok, 'POST', { otp: '000000' });
+  ok('wrong OTP rejected, order not delivered', wrongOtp.status === 400);
+
+  const rightOtp = await api(url, `/api/delivery/orders/${orderId}/deliver`, partnerTok, 'POST', { otp: TEST_OTP });
+  ok('correct OTP confirms the delivery', rightOtp.status === 200 && rightOtp.json.data.status === 'delivered');
+
   const track2 = await api(url, `/api/orders/${orderId}/tracking`, partnerTok);
-  ok('order auto-delivered at the drop', track2.json.data.status === 'delivered' && track2.json.data.phase === 'delivered');
+  ok('order delivered after OTP confirmation', track2.json.data.status === 'delivered' && track2.json.data.phase === 'delivered');
 
   const mine = await api(url, '/api/delivery/orders/mine?scope=completed', partnerTok);
   ok('appears in partner’s completed deliveries', mine.json.data.some((o: any) => o.id === orderId), `${mine.json.data.length} completed`);

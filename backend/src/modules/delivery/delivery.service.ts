@@ -1,6 +1,8 @@
 import db from '../../shared/config/database';
 import { NotificationsService } from '../notifications/notifications.service';
 import { attachItems } from '../orders/orders.service';
+import { OrderEmailService } from '../orders/orders.email';
+import { DeliveryOtpService } from '../orders/delivery-otp.service';
 import { OrderRow, DeliveryOrder } from '../orders/orders.types';
 import { DeliverySummary } from './delivery.types';
 import { TrackingService } from '../tracking/tracking.service';
@@ -86,13 +88,44 @@ export const DeliveryService = {
       console.warn(`Route dispatch failed for order ${orderId}:`, (err as Error).message);
     });
 
+    OrderEmailService.notifyStatusChange(orderId, 'confirmed', 'shipped').catch((err) =>
+      console.error(`📧 Failed to send out-for-delivery email for order ${orderId}:`, (err as Error).message)
+    );
+
     return (await this.getOne(partnerId, orderId))!;
   },
 
-  /** Mark one of this partner's in-progress orders as delivered. */
-  async markDelivered(partnerId: number, orderId: number): Promise<DeliveryOrder> {
+  /**
+   * Complete one of this partner's in-progress deliveries — gated on the
+   * customer's delivery-handoff OTP (emailed to them when the order went out
+   * for delivery, see DeliveryOtpService). The partner must ask the customer
+   * for the code in person before this succeeds.
+   */
+  async markDelivered(partnerId: number, orderId: number, otp: string): Promise<DeliveryOrder> {
+    const { rows: ownRows } = await db.query<{ id: number }>(
+      `SELECT id FROM orders WHERE id = $1 AND delivery_partner_id = $2 AND status = 'shipped'`,
+      [orderId, partnerId]
+    );
+    if (!ownRows[0]) {
+      throw Object.assign(
+        new Error('Order not found or not currently out for delivery.'),
+        { statusCode: 409 }
+      );
+    }
+
+    const otpValid = await DeliveryOtpService.verify(orderId, otp);
+    if (!otpValid) {
+      throw Object.assign(
+        new Error('Incorrect or expired delivery OTP. Ask the customer for their code and try again.'),
+        { statusCode: 400 }
+      );
+    }
+
     const { rows } = await db.query<{ user_id: number }>(
-      `UPDATE orders SET status = 'delivered'
+      `UPDATE orders SET
+         status = 'delivered',
+         tracking_phase = 'delivered',
+         tracking_delivered_at = COALESCE(tracking_delivered_at, NOW())
        WHERE id = $1 AND delivery_partner_id = $2 AND status = 'shipped'
        RETURNING user_id`,
       [orderId, partnerId]
@@ -110,6 +143,10 @@ export const DeliveryService = {
       body: 'Your order has been delivered. Thank you for shopping with MedPet!',
       type: 'order',
     });
+
+    OrderEmailService.notifyStatusChange(orderId, 'shipped', 'delivered').catch((err) =>
+      console.error(`📧 Failed to send order-delivered email for order ${orderId}:`, (err as Error).message)
+    );
 
     return (await this.getOne(partnerId, orderId))!;
   },

@@ -64,6 +64,13 @@ export const TrackingController = {
       sendError(res, 'Not allowed to update this order.', 403);
       return;
     }
+    // Completing a delivery requires the customer's OTP (see
+    // DeliveryService.markDelivered) — only an admin may force it here, e.g.
+    // to resolve a support case where the code genuinely can't be used.
+    if (phase === 'delivered' && req.user!.role !== 'admin') {
+      sendError(res, 'Use the delivery OTP to confirm this delivery — ask the customer for their code.', 403);
+      return;
+    }
 
     const result = await TrackingService.setPhase(orderId, phase);
     if (!result) { sendError(res, 'Order not found.', 404); return; }

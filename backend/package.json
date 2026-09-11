@@ -11,6 +11,8 @@
     "seed": "ts-node src/shared/config/seed.ts",
     "type-check": "tsc --noEmit",
     "test:pure": "ts-node -T tests/pure.test.ts",
+    "test:email": "ts-node -T tests/email.test.ts",
+    "test:delivery-otp": "ts-node -T tests/delivery-otp.test.ts",
     "test:socket": "ts-node -T tests/socket.test.ts",
     "test:e2e": "ts-node -T tests/e2e.test.ts",
     "test:partner": "ts-node -T tests/partner.test.ts",

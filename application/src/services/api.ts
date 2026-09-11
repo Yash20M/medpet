@@ -292,7 +292,8 @@ export const deliveryAPI = {
     instance.get<unknown, ApiSuccess<ApiDeliveryOrder[]>>('/delivery/orders/mine', { params: { scope } }),
   get: (id: number) => instance.get<unknown, ApiSuccess<ApiDeliveryOrder>>(`/delivery/orders/${id}`),
   accept: (id: number) => instance.post<unknown, ApiSuccess<ApiDeliveryOrder>>(`/delivery/orders/${id}/accept`),
-  deliver: (id: number) => instance.post<unknown, ApiSuccess<ApiDeliveryOrder>>(`/delivery/orders/${id}/deliver`),
+  deliver: (id: number, otp: string) =>
+    instance.post<unknown, ApiSuccess<ApiDeliveryOrder>>(`/delivery/orders/${id}/deliver`, { otp }),
 };
 
 export const petAPI = {

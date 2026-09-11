@@ -50,22 +50,3 @@ export const invitePartnerEmail = (name: string, url: string): EmailBody => ({
     `You've been added as a delivery partner. Set your password here:\n${url}\n\n` +
     `This link expires in 3 days.`,
 });
-
-/** Sent for a self-service "forgot password" request. */
-export const resetPasswordEmail = (name: string, url: string): EmailBody => ({
-  subject: 'Reset your MedPet password',
-  html: shell(
-    `Hi ${name},`,
-    `<p style="color:#334155;font-size:15px;line-height:1.6;margin:0 0 8px;">
-       We received a request to reset your password. Click below to choose a new one.
-     </p>
-     ${button(url, 'Reset password')}
-     <p style="color:#6B8079;font-size:13px;line-height:1.6;margin:0 0 4px;">
-       Or copy this link into your browser:<br/>
-       <a href="${url}" style="color:#059669;word-break:break-all;">${url}</a>
-     </p>
-     <p style="color:#6B8079;font-size:13px;margin:12px 0 0;">This link expires in 3 days.</p>`
-  ),
-  text:
-    `Hi ${name},\n\nReset your MedPet password here:\n${url}\n\nThis link expires in 3 days.`,
-});

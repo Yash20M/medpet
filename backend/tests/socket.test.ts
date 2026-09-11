@@ -137,7 +137,11 @@ async function run(): Promise<void> {
   const etas = locations.map((l) => l.eta);
   ok('ETA does not jump up randomly (last ≤ first)', etas[etas.length - 1] <= etas[0], `${etas[0]} → ${etas[etas.length - 1]} min`);
   ok('status auto-advanced (picked/on_the_way/nearby seen)', statusChanges.some((s) => ['picked', 'on_the_way', 'nearby'].includes(s.newStatus)), statusChanges.map((s) => s.newStatus).join(' → '));
-  ok('final phase is delivered (reached the drop)', locations[locations.length - 1]?.phase === 'delivered' || statusChanges.some((s) => s.newStatus === 'delivered'));
+  // GPS proximity now caps out at 'nearby' — completing the delivery requires
+  // the customer's OTP (DeliveryOtpService / DeliveryService.markDelivered),
+  // covered end-to-end in tests/partner.test.ts and tests/delivery-otp.test.ts.
+  ok('final phase reached nearby (reached the drop, not yet OTP-confirmed)', locations[locations.length - 1]?.phase === 'nearby' || statusChanges.some((s) => s.newStatus === 'nearby'));
+  ok('GPS proximity alone never auto-completes the delivery', !statusChanges.some((s) => s.newStatus === 'delivered'));
   ok('eta-update events were emitted', etaUpdates.length >= N - 1, `${etaUpdates.length} events`);
 
   // ── Fallback REST endpoint ───────────────────────────────────────────────

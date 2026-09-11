@@ -1,4 +1,4 @@
-# Real-Time Delivery Tracking (Amravati)
+# Real-Time Delivery Tracking
 
 Zomato-style live tracking layered onto the existing MedPet stack — **100% free tooling, no API keys**: Socket.IO, OSRM routing, Nominatim geocoding, OpenStreetMap/CARTO tiles, `react-native-svg` (app), Leaflet (admin).
 
@@ -24,7 +24,7 @@ flowchart LR
 
 1. Validate: order exists, has a cached route, status = `shipped`, sender is the assigned driver.
 2. Debounce: ignore pings < 2 s apart (noisy GPS).
-3. Bounds: reject points outside Amravati.
+3. Deviation guard: reject pings that snap too far from that order's own cached route (bogus GPS), rather than a fixed city bounding box — so delivery isn't restricted to any one city.
 4. **Snap** the raw GPS to the cached OSRM polyline (no OSRM call).
 5. ETA = remaining-distance ÷ 18 km/h; progress 0–1.
 6. Auto-advance phase (picked <100 m of pickup · nearby <500 m of drop · delivered <50 m).
@@ -87,5 +87,5 @@ Covers OSRM fetch, snap-to-route, ETA, debounce/rate-limit, the live socket walk
 ## Notes / next steps
 
 - `BASE_URL`/`SOCKET_URL` point at `localhost:5000` (matches the existing `adb reverse` setup); a physical device needs your machine's LAN IP.
-- Amravati bounds (`lat 20.85–21.01, lng 77.65–77.85`) and the store location live in `backend/src/shared/config/amravati.ts`.
+- The store/warehouse pickup location lives in `backend/src/shared/config/amravati.ts` (name kept for now to avoid churn across its several importers) — it's the only hardcoded coordinate left; delivery itself is not restricted to any city or region.
 - Optional future work: a Leaflet heat overlay for the zone data, per-rider shift analytics.
