@@ -2,6 +2,7 @@ import type http from 'http';
 import { Server } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import db from '../config/database';
+import { corsOrigin } from '../config/corsOrigin';
 import { setIO } from './io';
 import { registerTrackingSocket } from '../../modules/tracking/tracking.sockets';
 
@@ -13,7 +14,7 @@ import { registerTrackingSocket } from '../../modules/tracking/tracking.sockets'
  */
 export const attachSockets = (server: http.Server): Server => {
   const io = new Server(server, {
-    cors: { origin: process.env.CLIENT_URL ?? '*', credentials: true },
+    cors: { origin: corsOrigin(), credentials: true },
   });
 
   io.use(async (socket, next) => {

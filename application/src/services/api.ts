@@ -2,9 +2,11 @@ import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { AuthPayload, User } from '../types/auth.types';
 
-// Standalone build on a physical device: point at the backend host's LAN IP
-// (phone and PC must be on the same Wi-Fi network).
-export const BASE_URL = 'http://192.168.31.244:5000/api';
+// Inlined at bundle time from application/.env (EXPO_PUBLIC_API_URL). Falls back
+// to the dev PC's LAN IP for local testing on the same Wi-Fi.
+export const BASE_URL = (
+  process.env.EXPO_PUBLIC_API_URL || 'http://192.168.31.244:5000/api'
+).replace(/\/+$/, '');
 
 interface ApiSuccess<T> {
   success: true;
@@ -14,7 +16,8 @@ interface ApiSuccess<T> {
 
 const instance: AxiosInstance = axios.create({
   baseURL: BASE_URL,
-  timeout: 10_000,
+  // Free-tier hosts sleep when idle; the first request can take ~50s to wake them.
+  timeout: 60_000,
   headers: { 'Content-Type': 'application/json' },
 });
 

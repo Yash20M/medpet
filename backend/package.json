@@ -17,6 +17,7 @@
     "test:e2e": "ts-node -T tests/e2e.test.ts",
     "test:partner": "ts-node -T tests/partner.test.ts",
     "test:sim": "ts-node -T tests/sim.test.ts",
+    "test:smoke": "ts-node -T tests/smoke.test.ts",
     "test:tracking": "npm run test:pure && npm run test:socket && npm run test:e2e && npm run test:partner"
   },
   "dependencies": {

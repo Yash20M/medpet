@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import dotenv from 'dotenv';
 import { uploadsRouter, UPLOAD_DIR } from './modules/uploads';
 import { resetPasswordPage, resetPasswordScript } from './shared/utils/resetPasswordPage';
+import { corsOrigin } from './shared/config/corsOrigin';
 
 // ─── Module imports ───────────────────────────────────────────────────────────
 import { authRouter } from './modules/auth';
@@ -27,11 +28,14 @@ dotenv.config();
 
 const createApp = (): Application => {
   const app = express();
+  // Hosts like Render terminate TLS at a proxy; trust its X-Forwarded-Proto so
+  // req.protocol is "https" and generated upload URLs aren't mixed content.
+  app.set('trust proxy', 1);
 
   // ─── Global middleware ───────────────────────────────────────────────────
   // Allow uploaded images to be loaded cross-origin (admin / app on other hosts).
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
-  app.use(cors({ origin: process.env.CLIENT_URL ?? '*', credentials: true }));
+  app.use(cors({ origin: corsOrigin(), credentials: true }));
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true }));
 

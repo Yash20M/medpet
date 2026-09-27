@@ -474,11 +474,15 @@ const SQL_EMAIL_NOTIFICATIONS = `
   CREATE INDEX IF NOT EXISTS idx_email_notifications_status ON email_notifications(status);
 `;
 
-async function migrate(): Promise<void> {
+// Serialises concurrent boots (e.g. two instances during a zero-downtime deploy).
+const MIGRATION_LOCK_KEY = 7_311_2026;
+
+export async function runMigrations(): Promise<void> {
   const client = await db.getClient();
   try {
     console.log('🔄 Running migrations...');
     await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock($1)', [MIGRATION_LOCK_KEY]);
 
     await client.query(SQL_UPDATED_AT_FN);
     await client.query(SQL_USERS);
@@ -509,12 +513,17 @@ async function migrate(): Promise<void> {
     console.log('✅ Migration complete — all tables ready.');
   } catch (err) {
     await client.query('ROLLBACK');
-    console.error('❌ Migration failed:', err);
-    process.exit(1);
+    throw err;
   } finally {
     client.release();
-    await db.pool.end();
   }
 }
 
-migrate();
+if (require.main === module) {
+  runMigrations()
+    .catch((err) => {
+      console.error('❌ Migration failed:', err);
+      process.exitCode = 1;
+    })
+    .finally(() => db.pool.end());
+}

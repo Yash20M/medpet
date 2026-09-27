@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import { PoolClient } from 'pg';
 import db from './database';
 import dotenv from 'dotenv';
 
@@ -45,13 +46,89 @@ const OFFERS = [
   { title: 'Free Consultation', subtitle: 'Talk to a vet online\n24/7 support available', badge: 'FREE', code: 'VET0', emoji: '👨‍⚕️', color_from: '#F59E0B', color_to: '#B45309', sort_order: 3 },
 ];
 
-async function seed(): Promise<void> {
+const SEEDED_MARKER = 'catalog_seeded_at';
+
+async function insertCatalog(client: PoolClient): Promise<void> {
+  const slugToId = new Map<string, number>();
+  for (const c of CATEGORIES) {
+    const { rows } = await client.query<{ id: number }>(
+      `INSERT INTO categories (name, slug, icon, image_url, color, icon_bg, sort_order)
+       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+      [c.name, c.slug, c.icon, c.image, c.color, c.icon_bg, c.sort_order]
+    );
+    slugToId.set(c.slug, rows[0].id);
+  }
+
+  for (const p of PRODUCTS) {
+    await client.query(
+      `INSERT INTO products
+         (name, brand, description, emoji, image_url, category_id, original_price, discount_price,
+          rating, reviews_count, stock_quantity, in_stock, is_featured)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+      [p.name, p.brand, p.desc, p.emoji, p.image, slugToId.get(p.cat) ?? null,
+       p.original, p.price, p.rating, p.reviews, p.stock, p.instock !== false, p.featured]
+    );
+  }
+
+  for (const o of OFFERS) {
+    await client.query(
+      `INSERT INTO offers (title, subtitle, badge, code, emoji, color_from, color_to, sort_order)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [o.title, o.subtitle, o.badge, o.code || null, o.emoji, o.color_from, o.color_to, o.sort_order]
+    );
+  }
+}
+
+async function markSeeded(client: PoolClient): Promise<void> {
+  await client.query(
+    `INSERT INTO app_settings (key, value) VALUES ($1, $2)
+     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+    [SEEDED_MARKER, new Date().toISOString()]
+  );
+}
+
+/**
+ * Startup seed: fills the catalog on a brand-new database only. The marker row
+ * stops it from re-adding demo products after an admin has deleted them.
+ */
+export async function seedCatalogIfEmpty(): Promise<void> {
+  const client = await db.getClient();
+  try {
+    await client.query('BEGIN');
+    await client.query('SELECT pg_advisory_xact_lock($1)', [7_311_2027]);
+
+    const marker = await client.query(`SELECT 1 FROM app_settings WHERE key = $1`, [SEEDED_MARKER]);
+    if (marker.rowCount) {
+      await client.query('COMMIT');
+      return;
+    }
+
+    const { rows } = await client.query<{ n: number }>(
+      `SELECT (SELECT COUNT(*) FROM categories)::int + (SELECT COUNT(*) FROM products)::int AS n`
+    );
+    if (rows[0].n === 0) {
+      await insertCatalog(client);
+      console.log(`🌱 Fresh database — seeded ${CATEGORIES.length} categories, ${PRODUCTS.length} products, ${OFFERS.length} offers.`);
+    } else {
+      console.log('🌱 Catalog already has data — skipping demo seed.');
+    }
+    await markSeeded(client);
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/** `npm run seed` — DESTRUCTIVE full reset of the catalog + admin password. */
+async function resetSeed(): Promise<void> {
   const client = await db.getClient();
   try {
     console.log('🌱 Seeding database...');
     await client.query('BEGIN');
 
-    // Admin user
     const hash = await bcrypt.hash(ADMIN.password, 12);
     await client.query(
       `INSERT INTO users (name, email, password, role)
@@ -60,54 +137,26 @@ async function seed(): Promise<void> {
       [ADMIN.name, ADMIN.email.toLowerCase(), hash]
     );
 
-    // Reset catalog tables
     await client.query('TRUNCATE TABLE offers RESTART IDENTITY');
     await client.query('TRUNCATE TABLE products RESTART IDENTITY CASCADE');
     await client.query('TRUNCATE TABLE categories RESTART IDENTITY CASCADE');
 
-    // Categories → map slug to id
-    const slugToId = new Map<string, number>();
-    for (const c of CATEGORIES) {
-      const { rows } = await client.query<{ id: number }>(
-        `INSERT INTO categories (name, slug, icon, image_url, color, icon_bg, sort_order)
-         VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
-        [c.name, c.slug, c.icon, c.image, c.color, c.icon_bg, c.sort_order]
-      );
-      slugToId.set(c.slug, rows[0].id);
-    }
-
-    // Products
-    for (const p of PRODUCTS) {
-      await client.query(
-        `INSERT INTO products
-           (name, brand, description, emoji, image_url, category_id, original_price, discount_price,
-            rating, reviews_count, stock_quantity, in_stock, is_featured)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
-        [p.name, p.brand, p.desc, p.emoji, p.image, slugToId.get(p.cat) ?? null,
-         p.original, p.price, p.rating, p.reviews, p.stock, p.instock !== false, p.featured]
-      );
-    }
-
-    // Offers
-    for (const o of OFFERS) {
-      await client.query(
-        `INSERT INTO offers (title, subtitle, badge, code, emoji, color_from, color_to, sort_order)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-        [o.title, o.subtitle, o.badge, o.code || null, o.emoji, o.color_from, o.color_to, o.sort_order]
-      );
-    }
+    await insertCatalog(client);
+    await markSeeded(client);
 
     await client.query('COMMIT');
     console.log(`✅ Seed complete — ${CATEGORIES.length} categories, ${PRODUCTS.length} products, ${OFFERS.length} offers.`);
-    console.log(`   👤 Admin login: ${ADMIN.email} / ${ADMIN.password}`);
+    console.log(`   👤 Admin login: ${ADMIN.email}`);
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('❌ Seed failed:', err);
-    process.exit(1);
+    process.exitCode = 1;
   } finally {
     client.release();
     await db.pool.end();
   }
 }
 
-seed();
+if (require.main === module) {
+  void resetSeed();
+}

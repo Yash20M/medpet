@@ -1,0 +1,71 @@
+# Render Blueprint — Dashboard → New → Blueprint → pick this repo.
+# Values marked `sync: false` are prompted for on first deploy (see DEPLOY.md).
+services:
+  - type: web
+    name: medpet-api
+    runtime: node
+    plan: free
+    region: singapore
+    rootDir: backend
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL          # Neon connection string (must include ?sslmode=require)
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: ADMIN_NAME
+        value: MedPet Admin
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: CLIENT_URL            # admin site origin, e.g. https://medpet-admin.onrender.com
+        sync: false
+      - key: PUBLIC_APP_URL        # this API's own URL, e.g. https://medpet-api.onrender.com
+        sync: false
+      - key: MAIL_HOST
+        value: smtp.gmail.com
+      - key: MAIL_PORT
+        value: "587"
+      - key: MAIL_SECURE
+        value: "false"
+      - key: MAIL_USERNAME
+        sync: false
+      - key: MAIL_PASSWORD
+        sync: false
+      - key: MAIL_FROM_EMAIL
+        sync: false
+      - key: MAIL_FROM_NAME
+        value: MedPet
+      - key: OSRM_URL
+        value: https://router.project-osrm.org
+      - key: NOMINATIM_URL
+        value: https://nominatim.openstreetmap.org
+      - key: GEO_USER_AGENT
+        value: MedPet-Delivery/1.0 (Amravati)
+      - key: SIMULATION_MODE
+        value: "false"
+
+  - type: web
+    name: medpet-admin
+    runtime: static
+    rootDir: admin-web
+    buildCommand: npm ci --include=dev && npm run build
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL          # e.g. https://medpet-api.onrender.com/api
+        sync: false
+      - key: VITE_MAPPLS_STATIC_KEY
+        sync: false

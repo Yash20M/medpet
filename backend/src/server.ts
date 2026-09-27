@@ -4,6 +4,8 @@ dotenv.config();
 import http from 'http';
 import createApp from './app';
 import { ensureAdminExists } from './shared/config/ensureAdmin';
+import { runMigrations } from './shared/config/migrate';
+import { seedCatalogIfEmpty } from './shared/config/seed';
 import { verifyEmailConfig } from './shared/config/email';
 import { attachSockets } from './shared/realtime/socket';
 import { startSimulation } from './modules/tracking/simulator';
@@ -11,7 +13,13 @@ import { startSimulation } from './modules/tracking/simulator';
 const PORT = Number(process.env.PORT) || 5000;
 
 async function start(): Promise<void> {
-  await ensureAdminExists();
+  if (process.env.AUTO_MIGRATE !== 'false') {
+    await runMigrations();
+    await ensureAdminExists();
+    await seedCatalogIfEmpty();
+  } else {
+    await ensureAdminExists();
+  }
   // Never blocks/crashes startup — SMTP being down shouldn't take the API down.
   await verifyEmailConfig();
 
@@ -31,4 +39,7 @@ async function start(): Promise<void> {
   });
 }
 
-start();
+start().catch((err) => {
+  console.error('❌ Startup failed:', err);
+  process.exit(1);
+});

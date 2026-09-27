@@ -24,7 +24,11 @@ export async function ensureAdminExists(): Promise<void> {
       [name, email, hash]
     );
 
-    console.log(`👤 No admin found — created default admin: ${email} / ${password}`);
+    const isProd = process.env.NODE_ENV === 'production';
+    console.log(`👤 No admin found — created default admin: ${email}${isProd ? '' : ` / ${password}`}`);
+    if (isProd && !process.env.ADMIN_PASSWORD) {
+      console.warn('⚠️  ADMIN_PASSWORD is not set — the admin is using the default password. Set it and change it now.');
+    }
   } catch (err) {
     console.error(
       '⚠️  Could not verify/create admin user (did you run "npm run migrate"?):',
