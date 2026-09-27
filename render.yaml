@@ -2,7 +2,7 @@
 # Values marked `sync: false` are prompted for on first deploy (see DEPLOY.md).
 services:
   - type: web
-    name: medpet-api
+    name: medpet-api-yash20m
     runtime: node
     plan: free
     region: singapore
@@ -55,7 +55,7 @@ services:
         value: "false"
 
   - type: web
-    name: medpet-admin
+    name: medpet-admin-yash20m
     runtime: static
     rootDir: admin-web
     buildCommand: npm ci --include=dev && npm run build
