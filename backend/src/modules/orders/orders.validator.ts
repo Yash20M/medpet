@@ -3,6 +3,7 @@ import { body, ValidationChain } from 'express-validator';
 export const createOrderValidator: ValidationChain[] = [
   body('items').isArray({ min: 1 }).withMessage('items must be a non-empty array.'),
   body('items.*.productId').isInt().withMessage('productId must be an integer.'),
+  body('items.*.variantId').optional({ nullable: true }).isInt({ min: 1 }).withMessage('variantId must be an integer.'),
   body('items.*.quantity').isInt({ min: 1 }).withMessage('quantity must be a positive integer.'),
   body('address').optional().isString().isLength({ max: 500 }),
   body('contactPhone').optional().isString().isLength({ max: 20 }),

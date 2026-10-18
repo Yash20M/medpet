@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, Modal, TouchableOpacity, ActivityIndicator,
+  View, StyleSheet, Modal, TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
+import { Text } from './AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView, WebViewMessageEvent } from 'react-native-webview';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from './Icon';
 import * as Location from 'expo-location';
 import { COLORS } from '../theme/colors';
 import { DEFAULT_MAP_CENTER } from '../utils/tracking';

@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  View, StyleSheet, ScrollView, TouchableOpacity,
   StatusBar, ActivityIndicator, RefreshControl, Alert,
 } from 'react-native';
+import { Text } from '../components/AppText';
+import FadeInView from '../components/FadeInView';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '../components/Icon';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { orderAPI, productAPI, ApiOrder } from '../services/api';
 import { mapProduct } from '../hooks/useCatalog';
@@ -101,11 +103,12 @@ const OrdersScreen = ({ navigation }: Props) => {
           contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.primary} />}
         >
-          {orders.map((o) => {
+          {orders.map((o, idx) => {
             const meta = STATUS_META[o.status] ?? STATUS_META.pending;
             const trackable = TRACKABLE_STATUSES.has(o.status);
             return (
-              <TouchableOpacity
+              <FadeInView key={o.id} delay={idx * 70} distance={18}>
+                <TouchableOpacity
                 key={o.id}
                 style={styles.card}
                 activeOpacity={0.85}
@@ -136,7 +139,7 @@ const OrdersScreen = ({ navigation }: Props) => {
                       onPress={() => navigation.navigate('LiveTracking', { orderId: o.id })}
                     >
                       <Ionicons name="navigate" size={12} color={COLORS.white} />
-                      <Text style={styles.actionPrimaryText} numberOfLines={1} adjustsFontSizeToFit>Track Live</Text>
+                      <Text style={styles.actionPrimaryText} numberOfLines={1} maxFontSizeMultiplier={1}>Track</Text>
                     </TouchableOpacity>
                   )}
                   <TouchableOpacity
@@ -147,18 +150,19 @@ const OrdersScreen = ({ navigation }: Props) => {
                     {reorderingId === o.id
                       ? <ActivityIndicator size="small" color={COLORS.primary} />
                       : <Ionicons name="refresh" size={12} color={COLORS.primary} />}
-                    <Text style={styles.actionText} numberOfLines={1} adjustsFontSizeToFit>Reorder</Text>
+                    <Text style={styles.actionText} numberOfLines={1} maxFontSizeMultiplier={1}>Reorder</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.actionBtn} onPress={() => downloadInvoice(o)}>
                     <Ionicons name="download-outline" size={12} color={COLORS.primary} />
-                    <Text style={styles.actionText} numberOfLines={1} adjustsFontSizeToFit>Invoice</Text>
+                    <Text style={styles.actionText} numberOfLines={1} maxFontSizeMultiplier={1}>Invoice</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.actionBtn} onPress={() => navigation.navigate('SupportTickets')}>
                     <Ionicons name="help-buoy-outline" size={12} color={COLORS.primary} />
-                    <Text style={styles.actionText} numberOfLines={1} adjustsFontSizeToFit>Help</Text>
+                    <Text style={styles.actionText} numberOfLines={1} maxFontSizeMultiplier={1}>Help</Text>
                   </TouchableOpacity>
                 </View>
               </TouchableOpacity>
+              </FadeInView>
             );
           })}
         </ScrollView>
@@ -171,7 +175,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.background },
   header: { paddingTop: 12, paddingHorizontal: 20, paddingBottom: 18 },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  iconBtn: { width: 32, padding: 4 },
+  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 18, fontWeight: '800', color: COLORS.white },
   scrollContent: { padding: 20 },
   card: {
@@ -186,9 +190,9 @@ const styles = StyleSheet.create({
   cardBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: COLORS.grayBorder, paddingTop: 10 },
   date: { fontSize: 12, color: COLORS.gray },
   total: { fontSize: 15, fontWeight: '800', color: COLORS.primary },
-  actions: { flexDirection: 'row', gap: 6, marginTop: 12 },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 12 },
   actionBtn: {
-    flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3,
+    flexGrow: 1, flexBasis: 0, minWidth: 64, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3,
     borderRadius: 10, paddingVertical: 8, paddingHorizontal: 2, backgroundColor: COLORS.primaryLight,
     overflow: 'hidden',
   },

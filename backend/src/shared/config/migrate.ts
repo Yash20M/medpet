@@ -289,6 +289,7 @@ const SQL_PETS = `
     created_at  TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at  TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
   );
+  ALTER TABLE pets ADD COLUMN IF NOT EXISTS birth_date DATE;
   CREATE INDEX IF NOT EXISTS idx_pets_user ON pets(user_id);
 `;
 
@@ -474,6 +475,74 @@ const SQL_EMAIL_NOTIFICATIONS = `
   CREATE INDEX IF NOT EXISTS idx_email_notifications_status ON email_notifications(status);
 `;
 
+// Brands become first-class: a logo, a unique name, and a real link from products
+// (brand_id). products.brand (text) stays as a denormalised copy of the name so
+// older app builds and search keep working. The backfill is idempotent: it creates a
+// brand for any product brand name that has none yet and links every product by name.
+export const SQL_BRANDS = `
+  ALTER TABLE brands ADD COLUMN IF NOT EXISTS image_url TEXT;
+  ALTER TABLE products ADD COLUMN IF NOT EXISTS brand_id INTEGER REFERENCES brands(id) ON DELETE SET NULL;
+  CREATE INDEX IF NOT EXISTS idx_products_brand ON products(brand_id);
+
+  -- Case-insensitive unique names. Skipped (not fatal) if legacy duplicates exist.
+  DO $$ BEGIN
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_brands_name_lower ON brands (LOWER(name));
+  EXCEPTION WHEN unique_violation THEN
+    RAISE NOTICE 'brands: duplicate names exist, unique index skipped';
+  END $$;
+`;
+
+export const SQL_BRAND_BACKFILL = `
+  INSERT INTO brands (name, emoji, tint, sort_order)
+  SELECT TRIM(brand), '🐾', '#D1FAE5', 100 + (ROW_NUMBER() OVER (ORDER BY LOWER(TRIM(brand))))::int
+  FROM (SELECT DISTINCT ON (LOWER(TRIM(brand))) brand FROM products WHERE TRIM(COALESCE(brand, '')) <> '') x
+  WHERE NOT EXISTS (SELECT 1 FROM brands b WHERE LOWER(b.name) = LOWER(TRIM(x.brand)));
+
+  UPDATE products p SET brand_id = b.id, brand = b.name
+  FROM (SELECT DISTINCT ON (LOWER(name)) id, name FROM brands ORDER BY LOWER(name), id) b
+  WHERE p.brand_id IS NULL AND TRIM(COALESCE(p.brand, '')) <> '' AND LOWER(b.name) = LOWER(TRIM(p.brand));
+`;
+
+// Accessories are products flagged `is_accessory`, tagged with the pet types they
+// suit (same values as pets.type). An EMPTY pet_types list means "suits every pet".
+export const SQL_ACCESSORIES = `
+  ALTER TABLE products ADD COLUMN IF NOT EXISTS is_accessory BOOLEAN NOT NULL DEFAULT false;
+  ALTER TABLE products ADD COLUMN IF NOT EXISTS pet_types TEXT[] NOT NULL DEFAULT '{}';
+  CREATE INDEX IF NOT EXISTS idx_products_accessory ON products(is_accessory) WHERE is_accessory;
+`;
+
+// Size/weight variants ("10kg", "500g"…) with their own MRP, price and stock. A product
+// with variants keeps products.original_price/discount_price/stock_quantity as a summary
+// (cheapest variant / total stock) so lists and older app builds keep working.
+export const SQL_VARIANTS = `
+  CREATE TABLE IF NOT EXISTS product_variants (
+    id              SERIAL PRIMARY KEY,
+    product_id      INTEGER NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    label           VARCHAR(40) NOT NULL,
+    original_price  INTEGER NOT NULL CHECK (original_price >= 0),
+    discount_price  INTEGER NOT NULL CHECK (discount_price >= 0),
+    stock_quantity  INTEGER NOT NULL DEFAULT 0 CHECK (stock_quantity >= 0),
+    sort_order      INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX IF NOT EXISTS idx_product_variants_product ON product_variants(product_id, sort_order);
+  ALTER TABLE order_items ADD COLUMN IF NOT EXISTS variant_id INTEGER REFERENCES product_variants(id) ON DELETE SET NULL;
+  ALTER TABLE order_items ADD COLUMN IF NOT EXISTS variant_label VARCHAR(40);
+`;
+
+// Gallery: up to 5 images per product. products.image_url stays as the first image
+// (cards, cart, orders and older app builds only know that one).
+export const SQL_PRODUCT_IMAGES = `
+  ALTER TABLE products ADD COLUMN IF NOT EXISTS image_urls TEXT[] NOT NULL DEFAULT '{}';
+  UPDATE products SET image_urls = ARRAY[image_url] WHERE image_url IS NOT NULL AND cardinality(image_urls) = 0;
+`;
+
+// Free-text product details shown in the app's collapsible sections.
+export const SQL_PRODUCT_DETAILS = `
+  ALTER TABLE products ADD COLUMN IF NOT EXISTS manufacturer_details TEXT NOT NULL DEFAULT '';
+  ALTER TABLE products ADD COLUMN IF NOT EXISTS ingredients TEXT NOT NULL DEFAULT '';
+  ALTER TABLE products ADD COLUMN IF NOT EXISTS uses TEXT NOT NULL DEFAULT '';
+`;
+
 // Serialises concurrent boots (e.g. two instances during a zero-downtime deploy).
 const MIGRATION_LOCK_KEY = 7_311_2026;
 
@@ -490,6 +559,11 @@ export async function runMigrations(): Promise<void> {
     await client.query(SQL_PRODUCTS);
     await client.query(SQL_OFFERS);
     await client.query(SQL_CONTENT);
+    await client.query(SQL_BRANDS);
+    await client.query(SQL_BRAND_BACKFILL);
+    await client.query(SQL_ACCESSORIES);
+    await client.query(SQL_PRODUCT_IMAGES);
+    await client.query(SQL_PRODUCT_DETAILS);
     await client.query(SQL_COUPONS);
     await client.query(SQL_PETS);
     await client.query(SQL_WISHLIST);
@@ -498,6 +572,7 @@ export async function runMigrations(): Promise<void> {
     await client.query(SQL_SUPPORT_TICKETS);
     await client.query(SQL_SUPPORT_MESSAGES);
     await client.query(SQL_ORDERS);
+    await client.query(SQL_VARIANTS);
     await client.query(SQL_COUPON_REDEMPTIONS);
     await client.query(SQL_EMAIL_NOTIFICATIONS);
 

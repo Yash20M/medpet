@@ -1,10 +1,13 @@
 import React from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, Alert,
+  View, StyleSheet, ScrollView, TouchableOpacity,
+  StatusBar, Alert,
 } from 'react-native';
+import { Text } from '../components/AppText';
+import FadeInView from '../components/FadeInView';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '../components/Icon';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { usePets } from '../context/PetsContext';
 import { PetCard, AddPetPrompt } from '../components/PetCard';
@@ -43,8 +46,9 @@ const MyPetsScreen = ({ navigation }: Props) => {
 
         <View style={{ height: 16 }} />
 
-        {pets.map((pet) => (
-          <View key={pet.id} style={styles.petRow}>
+        {pets.map((pet, idx) => (
+          <FadeInView key={pet.id} delay={idx * 70} distance={18}>
+            <View key={pet.id} style={styles.petRow}>
             <View style={{ flex: 1 }}>
               <PetCard pet={pet} />
             </View>
@@ -52,6 +56,7 @@ const MyPetsScreen = ({ navigation }: Props) => {
               <Ionicons name="trash-outline" size={18} color={COLORS.errorDark} />
             </TouchableOpacity>
           </View>
+          </FadeInView>
         ))}
 
         {pets.length === 0 && (
@@ -70,7 +75,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.background },
   header: { paddingHorizontal: 20, paddingBottom: 20, borderBottomLeftRadius: RADII.xl, borderBottomRightRadius: RADII.xl },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  iconBtn: { width: 32, padding: 4 },
+  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 18, fontWeight: '800', color: COLORS.white },
   headerSub: { fontSize: 13, color: 'rgba(255,255,255,0.9)', marginTop: 8, marginLeft: 4 },
   scroll: { padding: 20, paddingBottom: 40 },

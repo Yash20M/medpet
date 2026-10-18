@@ -69,6 +69,10 @@ export interface ApiProduct {
   description: string;
   emoji: string;
   image_url: string | null;
+  image_urls?: string[];
+  manufacturer_details?: string;
+  ingredients?: string;
+  uses?: string;
   category_id: number | null;
   category_name: string | null;
   category_slug: string | null;
@@ -81,7 +85,19 @@ export interface ApiProduct {
   low_stock_threshold: number;
   in_stock: boolean;
   is_featured: boolean;
+  is_accessory?: boolean;
+  pet_types?: string[];
+  variants?: ApiVariant[];
   created_at: string;
+}
+
+export interface ApiVariant {
+  id: number;
+  label: string;
+  original_price: number;
+  discount_price: number;
+  stock_quantity: number;
+  discount_percent: number;
 }
 
 export interface ApiCategory {
@@ -131,6 +147,7 @@ export interface ApiOrderItem {
   image_url: string | null;
   price: number;
   quantity: number;
+  variant_label?: string | null;
 }
 
 export interface ApiOrder {
@@ -173,6 +190,8 @@ export interface PetDraftPayload {
   gender?: string;
   age_years?: number | null;
   weight_kg?: number | null;
+  /** YYYY-MM-DD (exact or approximate birthday) */
+  birth_date?: string | null;
   avatar_url?: string | null;
   notes?: string;
 }
@@ -234,7 +253,7 @@ export interface ApiSupportMessage {
 }
 
 export const productAPI = {
-  list: (params?: { category?: string; featured?: boolean; search?: string }) =>
+  list: (params?: { category?: string; featured?: boolean; search?: string; brand_id?: number; brand?: string; accessory?: boolean; pet_type?: string; limit?: number; page?: number }) =>
     instance.get<unknown, ApiSuccess<ApiProduct[]>>('/products', { params }),
   get: (id: string | number) =>
     instance.get<unknown, ApiSuccess<ApiProduct>>(`/products/${id}`),
@@ -266,7 +285,7 @@ export const wishlistAPI = {
 };
 
 export const orderAPI = {
-  create: (items: { productId: number; quantity: number }[], details?: CheckoutDetails) =>
+  create: (items: { productId: number; variantId?: number; quantity: number }[], details?: CheckoutDetails) =>
     instance.post<unknown, ApiSuccess<ApiOrder>>('/orders', { items, ...details }),
   list: () => instance.get<unknown, ApiSuccess<ApiOrder[]>>('/orders'),
   get: (id: number) => instance.get<unknown, ApiSuccess<ApiOrder>>(`/orders/${id}`),
@@ -288,11 +307,40 @@ export interface DeliverySummary {
 
 export type DeliveryScope = 'active' | 'completed' | 'all';
 
+export interface DeliveryHistoryRow {
+  id: number;
+  status: string;
+  total: number;
+  payment_method: string;
+  address: string;
+  accepted_at: string;
+  delivered_at: string | null;
+  customer_name: string;
+  item_count: number;
+}
+
+export interface DeliveryHistory {
+  range: { from: string; to: string };
+  summary: {
+    accepted: number;
+    delivered: number;
+    active: number;
+    total_value: number;
+    delivered_value: number;
+    cod_collected: number;
+  };
+  daily: { date: string; accepted: number; delivered: number; value: number }[];
+  orders: DeliveryHistoryRow[];
+  pagination: { page: number; limit: number; total: number; total_pages: number };
+}
+
 export const deliveryAPI = {
   summary: () => instance.get<unknown, ApiSuccess<DeliverySummary>>('/delivery/summary'),
   available: () => instance.get<unknown, ApiSuccess<ApiDeliveryOrder[]>>('/delivery/orders/available'),
   mine: (scope: DeliveryScope = 'all') =>
     instance.get<unknown, ApiSuccess<ApiDeliveryOrder[]>>('/delivery/orders/mine', { params: { scope } }),
+  history: (params: { from?: string; to?: string; page?: number; limit?: number }) =>
+    instance.get<unknown, ApiSuccess<DeliveryHistory>>('/delivery/history', { params }),
   get: (id: number) => instance.get<unknown, ApiSuccess<ApiDeliveryOrder>>(`/delivery/orders/${id}`),
   accept: (id: number) => instance.post<unknown, ApiSuccess<ApiDeliveryOrder>>(`/delivery/orders/${id}/accept`),
   deliver: (id: number, otp: string) =>
@@ -393,9 +441,9 @@ export const trackingAPI = {
 };
 
 export const couponAPI = {
-  eligible: (items: { productId: number; quantity: number }[]) =>
+  eligible: (items: { productId: number; variantId?: number; quantity: number }[]) =>
     instance.post<unknown, ApiSuccess<ApiCouponEligibility[]>>('/coupons/eligible', { items }),
-  validate: (code: string, items: { productId: number; quantity: number }[]) =>
+  validate: (code: string, items: { productId: number; variantId?: number; quantity: number }[]) =>
     instance.post<unknown, ApiSuccess<ApiCouponEligibility>>('/coupons/validate', { code, items }),
 };
 
@@ -422,6 +470,10 @@ export interface ApiBrand {
   name: string;
   emoji: string;
   tint: string;
+  /** Optional uploaded logo (shown instead of the emoji). */
+  image_url: string | null;
+  /** Active products with this brand. */
+  product_count: number;
 }
 
 export interface ApiTestimonial {
@@ -453,6 +505,8 @@ export interface ApiHomeContent {
 
 export const contentAPI = {
   home: () => instance.get<unknown, ApiSuccess<ApiHomeContent>>('/content/home'),
+  /** Every active brand that has products — the "See all brands" screen. */
+  brands: () => instance.get<unknown, ApiSuccess<ApiBrand[]>>('/content/brands'),
 };
 
 export const supportAPI = {

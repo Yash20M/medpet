@@ -7,29 +7,16 @@ import { Ionicons } from '@expo/vector-icons';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
-export interface QuickAction {
-  id: string;
-  icon: IconName;
-  label: string;
-  colors: [string, string];
-}
-
-export const QUICK_ACTIONS: QuickAction[] = [
-  { id: 'medicines',    icon: 'medkit',            label: 'Order Medicines',     colors: ['#10B981', '#059669'] },
-  { id: 'prescription', icon: 'document-text',     label: 'Upload Prescription', colors: ['#38BDF8', '#0EA5E9'] },
-  { id: 'vet',          icon: 'videocam',          label: 'Vet Consultation',    colors: ['#8B5CF6', '#6D28D9'] },
-  { id: 'vaccination',  icon: 'shield-checkmark',  label: 'Book Vaccination',    colors: ['#FB923C', '#F97316'] },
-  { id: 'emergency',    icon: 'alert-circle',      label: 'Emergency Care',      colors: ['#FB7185', '#E11D48'] },
-  { id: 'grooming',     icon: 'cut',               label: 'Pet Grooming',        colors: ['#6366F1', '#4338CA'] },
-  { id: 'insurance',    icon: 'umbrella',          label: 'Insurance',           colors: ['#14B8A6', '#0D9488'] },
-  { id: 'subscription', icon: 'repeat',            label: 'Subscriptions',       colors: ['#F59E0B', '#D97706'] },
-];
-
 export interface Brand {
   id: string;
   name: string;
   emoji: string;
   tint: string;
+  /** Server id — present for admin-managed brands, absent for the offline fixtures. */
+  apiId?: number;
+  /** Uploaded logo; falls back to `emoji` when missing or broken. */
+  imageUrl?: string | null;
+  productCount?: number;
 }
 
 export const BRANDS: Brand[] = [

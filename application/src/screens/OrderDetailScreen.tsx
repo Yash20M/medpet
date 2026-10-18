@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, StatusBar, ActivityIndicator } from 'react-native';
+import { Text } from '../components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '../components/Icon';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { orderAPI, ApiOrder, OrderStatus } from '../services/api';
@@ -86,7 +87,7 @@ const OrderDetailScreen = ({ navigation, route }: Props) => {
                 onPress={() => navigation.navigate('LiveTracking', { orderId: order.id })}
               >
                 <Ionicons name="navigate" size={15} color={COLORS.white} />
-                <Text style={styles.liveBtnText}>Track Live on Map</Text>
+                <Text style={styles.liveBtnText}>Track Order</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -129,7 +130,7 @@ const styles = StyleSheet.create({
   centered: { alignItems: 'center', justifyContent: 'center' },
   header: { paddingTop: 12, paddingHorizontal: 20, paddingBottom: 18 },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  iconBtn: { width: 32, padding: 4 },
+  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 17, fontWeight: '800', color: COLORS.white },
   scrollContent: { padding: 20 },
   cancelledBox: {

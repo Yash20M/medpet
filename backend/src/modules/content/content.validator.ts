@@ -19,10 +19,14 @@ export const updateTipValidator: ValidationChain[] = [
 export const createBrandValidator: ValidationChain[] = [
   body('name').trim().notEmpty().withMessage('Name is required.')
     .isLength({ max: 80 }).withMessage('Name too long.'),
+  body('image_url').optional({ nullable: true }).isString().withMessage('image_url must be a string.'),
+  body('tint').optional().matches(/^#[0-9a-fA-F]{3,8}$/).withMessage('Tint must be a hex colour like #D1FAE5.'),
 ];
 
 export const updateBrandValidator: ValidationChain[] = [
   body('name').optional().trim().isLength({ min: 1, max: 80 }).withMessage('Invalid name.'),
+  body('image_url').optional({ nullable: true }).isString().withMessage('image_url must be a string.'),
+  body('tint').optional().matches(/^#[0-9a-fA-F]{3,8}$/).withMessage('Tint must be a hex colour like #D1FAE5.'),
   body('is_active').optional().isBoolean().withMessage('is_active must be boolean.'),
 ];
 

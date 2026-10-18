@@ -1,12 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet,
-  ScrollView, KeyboardAvoidingView, Platform, Animated,
-  ActivityIndicator, Dimensions, Alert,
+  View, TouchableOpacity, StyleSheet, ScrollView,
+  KeyboardAvoidingView, Platform, Animated, ActivityIndicator,
+  Dimensions, Alert,
 } from 'react-native';
+import { Text, TextInput } from '../components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '../components/Icon';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
 import { authAPI } from '../services/api';

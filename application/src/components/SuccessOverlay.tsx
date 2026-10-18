@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
-import { Modal, View, Text, StyleSheet, Animated, Easing, Dimensions } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Modal, View, StyleSheet, Animated, Easing, Dimensions } from 'react-native';
+import { Text } from './AppText';
+import Ionicons from './Icon';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import { COLORS, GRADIENTS, RADII, SHADOWS } from '../theme/colors';

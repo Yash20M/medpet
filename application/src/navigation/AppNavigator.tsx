@@ -22,6 +22,8 @@ import SupportTicketsScreen from '../screens/SupportTicketsScreen';
 import NewSupportTicketScreen from '../screens/NewSupportTicketScreen';
 import SupportTicketDetailScreen from '../screens/SupportTicketDetailScreen';
 import LiveTrackingScreen from '../screens/LiveTrackingScreen';
+import BrandsScreen from '../screens/BrandsScreen';
+import AccessoriesScreen from '../screens/AccessoriesScreen';
 import HealthTipArticleScreen from '../screens/HealthTipArticleScreen';
 
 import { RootStackParamList } from '../types/navigation.types';
@@ -51,6 +53,8 @@ const RootNavigator = () => {
         <RootStack.Screen name="Main" component={MainTabs} />
         <RootStack.Group screenOptions={{ animation: 'slide_from_right' }}>
           <RootStack.Screen name="ProductList" component={ProductListScreen} />
+          <RootStack.Screen name="Brands" component={BrandsScreen} />
+          <RootStack.Screen name="Accessories" component={AccessoriesScreen} />
           <RootStack.Screen name="ProductDetail" component={ProductDetailScreen} />
           <RootStack.Screen name="Checkout" component={CheckoutScreen} />
           <RootStack.Screen name="Notifications" component={NotificationsScreen} />

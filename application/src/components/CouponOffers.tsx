@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TextInput, ActivityIndicator, Alert,
+  View, StyleSheet, ScrollView, ActivityIndicator,
+  Alert,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Text, TextInput } from './AppText';
+import Ionicons from './Icon';
 import { useCart } from '../context/CartContext';
 import { couponAPI, ApiCouponEligibility } from '../services/api';
 import { formatPrice } from '../types/product.types';
@@ -22,13 +24,13 @@ const CouponOffers = () => {
     if (items.length === 0) { setEligible([]); return; }
     let active = true;
     setLoading(true);
-    couponAPI.eligible(items.map((i) => ({ productId: Number(i.product.id), quantity: i.quantity })))
+    couponAPI.eligible(items.map((i) => ({ productId: Number(i.product.id), variantId: i.variant ? Number(i.variant.id) : undefined, quantity: i.quantity })))
       .then((res) => { if (active) setEligible(res.data); })
       .catch(() => { if (active) setEligible([]); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items.map((i) => `${i.product.id}:${i.quantity}`).join(',')]);
+  }, [items.map((i) => `${i.product.id}:${i.variant?.id ?? ''}:${i.quantity}`).join(',')]);
 
   const apply = async (couponCode: string) => {
     setApplying(true);
@@ -83,7 +85,7 @@ const CouponOffers = () => {
               style={styles.input}
               value={code}
               onChangeText={(t) => setCode(t.toUpperCase())}
-              placeholder="Enter coupon code"
+              placeholder="Coupon code"
               placeholderTextColor={COLORS.gray}
               autoCapitalize="characters"
             />
@@ -91,6 +93,7 @@ const CouponOffers = () => {
               onPress={() => code.trim() && apply(code.trim())}
               disabled={!code.trim() || applying}
               style={styles.applyBtn}
+              fill
             >
               {applying ? <ActivityIndicator color={COLORS.white} size="small" /> : <Text style={styles.applyBtnText}>Apply</Text>}
             </PressableScale>

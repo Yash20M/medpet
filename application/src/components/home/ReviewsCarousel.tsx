@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Dimensions } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View, StyleSheet, ScrollView, Dimensions } from 'react-native';
+import { Text } from '../AppText';
+import Ionicons from '../Icon';
 import { Testimonial } from '../../data/premium';
 import { COLORS, RADII, SHADOWS } from '../../theme/colors';
 

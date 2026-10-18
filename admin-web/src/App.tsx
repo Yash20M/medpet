@@ -5,6 +5,7 @@ import Login from './components/Login';
 import Sidebar, { Tab, TAB_LABELS } from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import Products from './components/Products';
+import Brands from './components/Brands';
 import Inventory from './components/Inventory';
 import Orders from './components/Orders';
 import LiveMap from './components/LiveMap';
@@ -13,6 +14,7 @@ import Offers from './components/Offers';
 import Coupons from './components/Coupons';
 import Users from './components/Users';
 import DeliveryPartners from './components/DeliveryPartners';
+import DeliveryHistory from './components/DeliveryHistory';
 import Notifications from './components/Notifications';
 import Support from './components/Support';
 import AppContent from './components/AppContent';
@@ -20,6 +22,7 @@ import AppContent from './components/AppContent';
 const SUBTITLES: Record<Tab, string> = {
   dashboard: 'Overview of your store performance',
   products: 'Manage your medicines & products',
+  brands: 'Manage product brands & logos',
   inventory: 'Track stock levels & restock alerts',
   orders: 'View, track and fulfil customer orders',
   livemap: 'Real-time delivery tracking',
@@ -28,6 +31,7 @@ const SUBTITLES: Record<Tab, string> = {
   coupons: 'Discount codes and promotional conditions',
   users: 'Customers and administrators',
   delivery: 'Add & manage delivery partners',
+  deliveryhistory: 'Deliveries accepted by partners over a date range',
   notifications: 'Send announcements & reminders',
   support: 'Customer support tickets',
   content: 'Health tips, brands, reviews, stores & app settings',
@@ -81,6 +85,7 @@ export default function App() {
         <div className="container">
           {tab === 'dashboard' && <Dashboard />}
           {tab === 'products' && <Products />}
+          {tab === 'brands' && <Brands />}
           {tab === 'inventory' && <Inventory />}
           {tab === 'orders' && <Orders />}
           {tab === 'livemap' && <LiveMap />}
@@ -89,6 +94,7 @@ export default function App() {
           {tab === 'coupons' && <Coupons />}
           {tab === 'users' && <Users />}
           {tab === 'delivery' && <DeliveryPartners />}
+          {tab === 'deliveryhistory' && <DeliveryHistory />}
           {tab === 'notifications' && <Notifications />}
           {tab === 'support' && <Support />}
           {tab === 'content' && <AppContent />}

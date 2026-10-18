@@ -1,7 +1,10 @@
-import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable, Animated } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, StyleSheet, Pressable, Animated } from 'react-native';
+import { Text } from './AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import Ionicons from './Icon';
+import AnimatedBadge from './AnimatedBadge';
 import { COLORS, RADII, SHADOWS } from '../theme/colors';
 
 export type TabKey = 'Home' | 'Categories' | 'Cart' | 'Orders' | 'Profile';
@@ -21,6 +24,8 @@ const TABS: TabDef[] = [
   { key: 'Profile', label: 'Profile', icon: 'person-outline', iconActive: 'person' },
 ];
 
+const PILL = 46;
+
 interface Props {
   active: TabKey;
   onTab: (key: TabKey) => void;
@@ -28,34 +33,41 @@ interface Props {
 }
 
 const TabItem = ({ tab, active, onPress, badge }: { tab: TabDef; active: boolean; onPress: () => void; badge?: number }) => {
-  const scale = useRef(new Animated.Value(active ? 1 : 0)).current;
+  const pop = useRef(new Animated.Value(active ? 1 : 0)).current;
   const press = useRef(new Animated.Value(1)).current;
 
+  // Icon "pops" up a little when its tab becomes active.
   useEffect(() => {
-    Animated.spring(scale, { toValue: active ? 1 : 0, useNativeDriver: true, friction: 6, tension: 120 }).start();
-  }, [active, scale]);
+    Animated.spring(pop, { toValue: active ? 1 : 0, useNativeDriver: true, friction: 5, tension: 140 }).start();
+  }, [active, pop]);
 
-  const lift = scale.interpolate({ inputRange: [0, 1], outputRange: [0, -4] });
+  const iconScale = pop.interpolate({ inputRange: [0, 1], outputRange: [1, 1.12] });
+  const iconLift = pop.interpolate({ inputRange: [0, 1], outputRange: [0, -2] });
 
   return (
     <Pressable
       style={styles.item}
-      onPress={onPress}
-      onPressIn={() => Animated.spring(press, { toValue: 0.85, useNativeDriver: true, friction: 7 }).start()}
+      onPress={() => { Haptics.selectionAsync().catch(() => {}); onPress(); }}
+      onPressIn={() => Animated.spring(press, { toValue: 0.88, useNativeDriver: true, friction: 7 }).start()}
       onPressOut={() => Animated.spring(press, { toValue: 1, useNativeDriver: true, friction: 7 }).start()}
+      accessibilityRole="tab"
+      accessibilityState={{ selected: active }}
+      accessibilityLabel={tab.label}
     >
-      <Animated.View style={{ transform: [{ translateY: lift }, { scale: press }], alignItems: 'center' }}>
-        <View style={[styles.iconWrap, active && styles.iconWrapActive]}>
-          <Ionicons
-            name={active ? tab.iconActive : tab.icon}
-            size={22}
-            color={active ? COLORS.white : COLORS.gray}
-          />
-          {badge != null && badge > 0 && (
-            <View style={styles.badge}><Text style={styles.badgeText}>{badge > 9 ? '9+' : badge}</Text></View>
-          )}
+      <Animated.View style={{ transform: [{ scale: press }], alignItems: 'center' }}>
+        <View style={styles.iconWrap}>
+          <Animated.View style={{ transform: [{ translateY: iconLift }, { scale: iconScale }] }}>
+            <Ionicons
+              name={active ? tab.iconActive : tab.icon}
+              size={22}
+              color={active ? COLORS.white : COLORS.gray}
+            />
+          </Animated.View>
+          {badge != null && badge > 0 && <AnimatedBadge count={badge} style={styles.badge} tone="coral" />}
         </View>
-        <Text style={[styles.label, active && styles.labelActive]} numberOfLines={1}>{tab.label}</Text>
+        <Text style={[styles.label, active && styles.labelActive]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+          {tab.label}
+        </Text>
       </Animated.View>
     </Pressable>
   );
@@ -63,8 +75,29 @@ const TabItem = ({ tab, active, onPress, badge }: { tab: TabDef; active: boolean
 
 const BottomNav = ({ active, onTab, cartCount }: Props) => {
   const insets = useSafeAreaInsets();
+  const [barWidth, setBarWidth] = useState(0);
+  const index = Math.max(0, TABS.findIndex((t) => t.key === active));
+  const slide = useRef(new Animated.Value(index)).current;
+
+  // One green pill glides between tabs instead of each tab toggling its own background.
+  useEffect(() => {
+    Animated.spring(slide, { toValue: index, useNativeDriver: true, friction: 8, tension: 90 }).start();
+  }, [index, slide]);
+
+  const tabWidth = barWidth / TABS.length;
+  const translateX = slide.interpolate({
+    inputRange: TABS.map((_, i) => i),
+    outputRange: TABS.map((_, i) => i * tabWidth + (tabWidth - PILL) / 2),
+  });
+
   return (
-    <View style={[styles.bar, { paddingBottom: insets.bottom + 8 }]}>
+    <View
+      style={[styles.bar, { paddingBottom: insets.bottom + 8 }]}
+      onLayout={(e) => setBarWidth(e.nativeEvent.layout.width)}
+    >
+      {barWidth > 0 && (
+        <Animated.View style={[styles.pill, { transform: [{ translateX }] }]} pointerEvents="none" />
+      )}
       {TABS.map((tab) => (
         <TabItem
           key={tab.key}
@@ -84,20 +117,15 @@ const styles = StyleSheet.create({
     paddingTop: 10, borderTopLeftRadius: RADII.xl, borderTopRightRadius: RADII.xl,
     ...SHADOWS.floating, shadowOpacity: 0.12,
   },
-  item: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  iconWrap: {
-    width: 44, height: 44, borderRadius: RADII.md,
-    alignItems: 'center', justifyContent: 'center',
+  item: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: 60 },
+  pill: {
+    position: 'absolute', top: 10, left: 0, width: PILL, height: PILL, borderRadius: RADII.md,
+    backgroundColor: COLORS.primary, ...SHADOWS.floating,
   },
-  iconWrapActive: { backgroundColor: COLORS.primary, ...SHADOWS.floating },
-  label: { fontSize: 10, color: COLORS.gray, fontWeight: '600', marginTop: 2 },
+  iconWrap: { width: PILL, height: PILL, alignItems: 'center', justifyContent: 'center' },
+  label: { fontSize: 10, color: COLORS.gray, fontWeight: '600', marginTop: 2, maxWidth: '100%' },
   labelActive: { color: COLORS.primary, fontWeight: '800' },
-  badge: {
-    position: 'absolute', top: 2, right: 4, minWidth: 16, height: 16, paddingHorizontal: 3,
-    borderRadius: 8, backgroundColor: COLORS.coral, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5, borderColor: COLORS.white,
-  },
-  badgeText: { color: COLORS.white, fontSize: 9, fontWeight: '800' },
+  badge: { position: 'absolute', top: 2, right: 4 },
 });
 
 export default BottomNav;

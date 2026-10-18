@@ -2,18 +2,16 @@ import { useEffect, useState, FormEvent } from 'react';
 import { api } from '../api';
 import { AdminContent, HealthTip, TipSection } from '../types';
 
-type ContentTab = 'tips' | 'brands' | 'reviews' | 'stores' | 'settings';
+type ContentTab = 'tips' | 'reviews' | 'stores' | 'settings';
 
 const TABS: { key: ContentTab; label: string }[] = [
   { key: 'tips', label: 'Health Tips' },
-  { key: 'brands', label: 'Brands' },
   { key: 'reviews', label: 'Reviews' },
   { key: 'stores', label: 'Stores' },
   { key: 'settings', label: 'Settings' },
 ];
 
 const EMPTY_TIP = { title: '', teaser: '', icon: 'sunny', color_from: '#FCD34D', color_to: '#F59E0B', read_mins: 3, sort_order: 0 };
-const EMPTY_BRAND = { name: '', emoji: '🐾', tint: '#D1FAE5', sort_order: 0 };
 const EMPTY_REVIEW = { owner_name: '', pet_name: '', pet_emoji: '🐕', rating: 5, body: '', sort_order: 0 };
 const EMPTY_STORE = { name: '', area: '', distance_km: 1.0, eta_mins: 20, is_open: true, sort_order: 0 };
 
@@ -70,21 +68,6 @@ export default function AppContent() {
     setTipForm({ title: t.title, teaser: t.teaser, icon: t.icon, color_from: t.color_from, color_to: t.color_to, read_mins: t.read_mins, sort_order: t.sort_order });
     setTipSections(t.sections.length ? t.sections : [{ heading: '', body: '' }]);
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  // ─── Brands state ──────────────────────────────────────────
-  const [brandForm, setBrandForm] = useState<typeof EMPTY_BRAND>(EMPTY_BRAND);
-  const [brandEditId, setBrandEditId] = useState<number | null>(null);
-
-  const submitBrand = async (e: FormEvent) => {
-    e.preventDefault();
-    setErr('');
-    const body = { ...brandForm, sort_order: Number(brandForm.sort_order) };
-    try {
-      if (brandEditId) { await api.updateBrand(brandEditId, body); toast('Brand updated'); }
-      else { await api.createBrand(body); toast('Brand created'); }
-      setBrandForm(EMPTY_BRAND); setBrandEditId(null); load();
-    } catch (e2) { fail(e2); }
   };
 
   // ─── Reviews state ─────────────────────────────────────────
@@ -238,43 +221,6 @@ export default function AppContent() {
                 </div>
               ))}
               {content.tips.length === 0 && <p className="muted">No tips yet.</p>}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ─── Brands ──────────────────────────────────────── */}
-      {tab === 'brands' && (
-        <div className="panel">
-          <form className="card" onSubmit={submitBrand}>
-            <h2>{brandEditId ? 'Edit brand' : 'Add brand'}</h2>
-            <label>Name</label>
-            <input value={brandForm.name} onChange={(e) => setBrandForm({ ...brandForm, name: e.target.value })} required />
-            <div className="row">
-              <div><label>Emoji</label><input value={brandForm.emoji} onChange={(e) => setBrandForm({ ...brandForm, emoji: e.target.value })} /></div>
-              <div><label>Tint (hex)</label><input value={brandForm.tint} onChange={(e) => setBrandForm({ ...brandForm, tint: e.target.value })} /></div>
-              <div><label>Order</label><input type="number" value={brandForm.sort_order} onChange={(e) => setBrandForm({ ...brandForm, sort_order: Number(e.target.value) })} /></div>
-            </div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 16 }}>
-              <button className="btn">{brandEditId ? 'Save' : 'Create'}</button>
-              {brandEditId && <button type="button" className="btn gray" onClick={() => { setBrandEditId(null); setBrandForm(EMPTY_BRAND); }}>Cancel</button>}
-            </div>
-          </form>
-
-          <div>
-            <div className="section-head"><h2>Brands ({content.brands.length})</h2></div>
-            <div style={{ display: 'grid', gap: 10 }}>
-              {content.brands.map((b) => (
-                <div key={b.id} className="card" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ width: 42, height: 42, borderRadius: 21, background: b.tint, display: 'grid', placeItems: 'center', fontSize: 20 }}>{b.emoji}</div>
-                  <div style={{ flex: 1, fontWeight: 800 }}>{b.name}</div>
-                  <Toggle on={b.is_active} onClick={async () => { await api.updateBrand(b.id, { is_active: !b.is_active }); load(); }} />
-                  <div className="actions">
-                    <button className="btn sm" onClick={() => { setBrandEditId(b.id); setBrandForm({ name: b.name, emoji: b.emoji, tint: b.tint, sort_order: b.sort_order }); }}>Edit</button>
-                    <button className="btn sm danger" onClick={async () => { if (confirm('Delete this brand?')) { await api.deleteBrand(b.id); toast('Deleted'); load(); } }}>Delete</button>
-                  </div>
-                </div>
-              ))}
             </div>
           </div>
         </div>

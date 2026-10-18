@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import {
-  Modal, View, Text, TextInput, TouchableOpacity, StyleSheet,
+  Modal, View, TouchableOpacity, StyleSheet,
   ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Text, TextInput } from '../AppText';
+import Ionicons from '../Icon';
 import { COLORS, RADII } from '../../theme/colors';
 
 type Props = {

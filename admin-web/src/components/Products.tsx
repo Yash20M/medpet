@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { api } from '../api';
-import { Product, Category } from '../types';
+import { Product, Category, Brand, petTypesLabel } from '../types';
 import ProductDetail from './ProductDetail';
 import ProductForm from './ProductForm';
 import Pagination from './Pagination';
@@ -12,14 +12,15 @@ const rupee = (n: number) => `₹${n.toLocaleString('en-IN')}`;
 export default function Products() {
   const [items, setItems] = useState<Product[]>([]);
   const [cats, setCats] = useState<Category[]>([]);
+  const [brands, setBrands] = useState<Brand[]>([]);
   const [viewingId, setViewingId] = useState<number | null>(null);
   // Add/edit form page: null = closed, { product: null } = add, { product } = edit.
   const [formState, setFormState] = useState<{ product: Product | null } | null>(null);
   const [msg, setMsg] = useState('');
   const [err, setErr] = useState('');
 
-  const load = () => Promise.all([api.products(), api.categories()])
-    .then(([p, c]) => { setItems(p); setCats(c); })
+  const load = () => Promise.all([api.products(), api.categories(), api.brands()])
+    .then(([p, c, b]) => { setItems(p); setCats(c); setBrands(b); })
     .catch((e) => setErr(e.message));
   useEffect(() => { load(); }, []);
 
@@ -31,7 +32,11 @@ export default function Products() {
     catch (e) { setErr((e as Error).message); }
   };
 
-  const { page, setPage, totalPages, total, pageItems, pageSize } = usePagination(items, 10);
+  const [kind, setKind] = useState<'all' | 'products' | 'accessories'>('all');
+  const shown = items.filter((p) => kind === 'all' || (kind === 'accessories') === p.is_accessory);
+  const accessoryCount = items.filter((p) => p.is_accessory).length;
+
+  const { page, setPage, totalPages, total, pageItems, pageSize } = usePagination(shown, 10);
 
   // ── Separate Add / Edit page ──
   if (formState) {
@@ -39,6 +44,7 @@ export default function Products() {
       <ProductForm
         product={formState.product}
         cats={cats}
+        brands={brands}
         onClose={() => setFormState(null)}
         onSaved={(m) => { setFormState(null); toast(m); load(); }}
       />
@@ -70,6 +76,23 @@ export default function Products() {
 
       {err && <div className="error">{err}</div>}
 
+      <div style={{ display: 'flex', gap: 8, margin: '0 0 14px' }}>
+        {([
+          ['all', `All (${items.length})`],
+          ['products', `Products (${items.length - accessoryCount})`],
+          ['accessories', `Accessories (${accessoryCount})`],
+        ] as const).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            className={`btn sm ${kind === key ? '' : 'gray'}`}
+            onClick={() => { setKind(key); setPage(1); }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       <table>
         <thead><tr><th></th><th>Name</th><th>Category</th><th>Price</th><th>Stock</th><th>Flags</th><th></th></tr></thead>
         <tbody>
@@ -83,6 +106,7 @@ export default function Products() {
               <td>
                 <div style={{ fontWeight: 600 }}>{p.name}</div>
                 <div className="muted">{p.brand}</div>
+                {p.is_accessory && <div className="muted">🎀 Accessory · {petTypesLabel(p.pet_types)}</div>}
               </td>
               <td className="muted">{p.category_name ?? '—'}</td>
               <td>
@@ -105,7 +129,11 @@ export default function Products() {
               </td>
             </tr>
           ))}
-          {items.length === 0 && <tr><td colSpan={7} className="muted">No products yet.</td></tr>}
+          {shown.length === 0 && (
+            <tr><td colSpan={7} className="muted">
+              {items.length === 0 ? 'No products yet.' : kind === 'accessories' ? 'No accessories yet — tick “Pet accessory” when adding a product.' : 'Nothing here.'}
+            </td></tr>
+          )}
         </tbody>
       </table>
 

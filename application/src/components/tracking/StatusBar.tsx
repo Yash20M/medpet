@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View, StyleSheet, Animated } from 'react-native';
+import { Text } from '../AppText';
+import Ionicons from '../Icon';
 import { LivePhase } from '../../services/api';
 import { PHASES, phaseIndex, phaseMeta } from '../../utils/tracking';
 import { COLORS } from '../../theme/colors';

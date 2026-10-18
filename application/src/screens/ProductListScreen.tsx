@@ -1,11 +1,14 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, StatusBar, Dimensions,
+  View, StyleSheet, ScrollView, TouchableOpacity,
+  StatusBar, Dimensions,
 } from 'react-native';
+import { Text, TextInput } from '../components/AppText';
+import FadeInView from '../components/FadeInView';
+import HeartButton from '../components/HeartButton';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '../components/Icon';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { useCart } from '../context/CartContext';
@@ -16,6 +19,14 @@ import { Product, formatPrice } from '../types/product.types';
 import { COLORS, GRADIENTS } from '../theme/colors';
 import { RootStackParamList } from '../types/navigation.types';
 import MediaThumb from '../components/MediaThumb';
+import SortSheet from '../components/SortSheet';
+import FilterSheet from '../components/FilterSheet';
+import PressableScale from '../components/PressableScale';
+import { PET_TYPE_PLURAL, PetType } from '../types/pet.types';
+import {
+  SortKey, DEFAULT_SORT, sortLabel, sortShortLabel, sortProducts, Filters, EMPTY_FILTERS, activeFilterCount,
+  applyFilters, makePetTypesOf, PRICE_BUCKETS,
+} from '../utils/productFilters';
 
 type Props = {
   navigation: NativeStackNavigationProp<RootStackParamList, 'ProductList'>;
@@ -29,27 +40,54 @@ const COL_GAP = 10;
 const CARD_W = (width - RAIL_W - GRID_PAD * 2 - COL_GAP) / 2;
 
 const ProductListScreen = ({ navigation, route }: Props) => {
-  const { category, title } = route.params ?? {};
+  const { category, title, featured: featuredOnly, brandId, brand } = route.params ?? {};
   const { items, itemCount, addItem, updateQty } = useCart();
   const { isWishlisted, toggle } = useWishlist();
   const requireAuth = useRequireAuth();
   const insets = useSafeAreaInsets();
   const { data: categories } = useCategories();
-  const { data: allProducts } = useProducts();
+  // `featured` = opened from Home's Featured Products "See all": list every featured product.
+  const { data: allProducts } = useProducts(
+    featuredOnly ? { featured: true } : brandId || brand ? { brandId, brand } : undefined
+  );
 
   const [active, setActive] = useState<string>(category ?? 'All');
   const [search, setSearch] = useState('');
+  const [sort, setSort] = useState<SortKey>(DEFAULT_SORT);
+  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+  const [sortOpen, setSortOpen] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
 
   const rail = [{ id: 'all', icon: '🛍️', label: 'All', imageUrl: undefined as string | undefined }, ...categories];
 
   const qtyOf = (id: string) => items.find((i) => i.product.id === id)?.quantity ?? 0;
 
-  const products = allProducts.filter((p) => {
+  // Category rail + search narrow the list first; the filter sheet counts options from this set.
+  const base = useMemo(() => allProducts.filter((p) => {
     const inCat = active === 'All' || p.category === active;
     const q = search.trim().toLowerCase();
     const inSearch = !q || p.name.toLowerCase().includes(q) || p.brand.toLowerCase().includes(q);
     return inCat && inSearch;
-  });
+  }), [allProducts, active, search]);
+
+  const petTypesOf = useMemo(() => makePetTypesOf(categories), [categories]);
+  const products = useMemo(
+    () => sortProducts(applyFilters(base, filters, petTypesOf), sort),
+    [base, filters, petTypesOf, sort]
+  );
+  const filterCount = activeFilterCount(filters);
+  const sortChanged = sort !== DEFAULT_SORT;
+  const clearFilters = () => setFilters(EMPTY_FILTERS);
+
+  // One removable chip per applied filter.
+  const chips: { key: string; label: string; remove: () => void }[] = [
+    ...filters.brands.map((b) => ({ key: `b:${b}`, label: b, remove: () => setFilters((f) => ({ ...f, brands: f.brands.filter((x) => x !== b) })) })),
+    ...filters.petTypes.map((t) => ({ key: `t:${t}`, label: PET_TYPE_PLURAL[t as PetType] ?? t, remove: () => setFilters((f) => ({ ...f, petTypes: f.petTypes.filter((x) => x !== t) })) })),
+    ...filters.prices.map((id) => ({ key: `p:${id}`, label: PRICE_BUCKETS.find((b) => b.id === id)?.label ?? id, remove: () => setFilters((f) => ({ ...f, prices: f.prices.filter((x) => x !== id) })) })),
+    ...(filters.minDiscount > 0 ? [{ key: 'd', label: `${filters.minDiscount}% & above`, remove: () => setFilters((f) => ({ ...f, minDiscount: 0 })) }] : []),
+    ...(filters.minRating > 0 ? [{ key: 'r', label: `${filters.minRating}★ & above`, remove: () => setFilters((f) => ({ ...f, minRating: 0 })) }] : []),
+    ...(filters.inStockOnly ? [{ key: 's', label: 'In stock', remove: () => setFilters((f) => ({ ...f, inStockOnly: false })) }] : []),
+  ];
 
   return (
     <View style={styles.safe}>
@@ -86,6 +124,51 @@ const ProductListScreen = ({ navigation, route }: Props) => {
           )}
         </View>
       </LinearGradient>
+
+      {/* ─── Sort + Filter bar ─────────────────────── */}
+      <View style={styles.toolbar}>
+        <View style={styles.toolRow}>
+          <PressableScale
+            style={[styles.toolBtn, sortChanged && styles.toolBtnOn]}
+            onPress={() => setSortOpen(true)}
+            scaleTo={0.96}
+            haptic={false}
+            accessibilityLabel={`Sort by ${sortLabel(sort)}`}
+          >
+            <Ionicons name="swap-vertical" size={16} color={sortChanged ? COLORS.primaryDark : COLORS.ink} />
+            <Text style={[styles.toolText, sortChanged && styles.toolTextOn]} numberOfLines={1}>
+              {sortChanged ? `Sort: ${sortShortLabel(sort)}` : 'Sort'}
+            </Text>
+            <Ionicons name="chevron-down" size={14} color={sortChanged ? COLORS.primaryDark : COLORS.gray} />
+          </PressableScale>
+
+          <PressableScale
+            style={[styles.toolBtn, filterCount > 0 && styles.toolBtnOn]}
+            onPress={() => setFilterOpen(true)}
+            scaleTo={0.96}
+            haptic={false}
+            accessibilityLabel={filterCount ? `Filters, ${filterCount} applied` : 'Filters'}
+          >
+            <Ionicons name="options-outline" size={16} color={filterCount ? COLORS.primaryDark : COLORS.ink} />
+            <Text style={[styles.toolText, filterCount > 0 && styles.toolTextOn]}>Filters</Text>
+            {filterCount > 0 && <View style={styles.toolBadge}><Text style={styles.toolBadgeText}>{filterCount}</Text></View>}
+          </PressableScale>
+        </View>
+
+        {chips.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+            {chips.map((c) => (
+              <TouchableOpacity key={c.key} style={styles.chip} onPress={c.remove} activeOpacity={0.7} accessibilityLabel={`Remove ${c.label} filter`}>
+                <Text style={styles.chipText} numberOfLines={1}>{c.label}</Text>
+                <Ionicons name="close" size={13} color={COLORS.primaryDark} />
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity onPress={clearFilters} hitSlop={8} style={styles.chipClear}>
+              <Text style={styles.chipClearText}>Clear all</Text>
+            </TouchableOpacity>
+          </ScrollView>
+        )}
+      </View>
 
       {/* ─── Body: category rail + product grid ───── */}
       <View style={styles.body}>
@@ -131,12 +214,21 @@ const ProductListScreen = ({ navigation, route }: Props) => {
               <View style={styles.empty}>
                 <Text style={styles.emptyEmoji}>🐾</Text>
                 <Text style={styles.emptyTitle}>No products found</Text>
-                <Text style={styles.emptySub}>Try a different category or search.</Text>
+                <Text style={styles.emptySub}>
+                  {filterCount > 0 ? 'No product matches your filters.' : 'Try a different category or search.'}
+                </Text>
+                {filterCount > 0 && (
+                  <TouchableOpacity style={styles.emptyBtn} onPress={clearFilters} activeOpacity={0.85}>
+                    <Text style={styles.emptyBtnText}>Clear filters</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             ) : (
-              <View style={styles.grid}>
-                {products.map((p) => (
-                  <ProductCard
+              // key replays the entrance animation when the order / filters change
+              <View key={`${sort}|${active}|${JSON.stringify(filters)}`} style={styles.grid}>
+                {products.map((p, idx) => (
+                  <FadeInView key={p.id} delay={(idx % 6) * 60} distance={20}>
+                    <ProductCard
                     key={p.id}
                     product={p}
                     qty={qtyOf(p.id)}
@@ -147,12 +239,23 @@ const ProductListScreen = ({ navigation, route }: Props) => {
                     onDec={() => updateQty(p.id, -1)}
                     onToggleWishlist={() => requireAuth(() => toggle(p), 'Login')}
                   />
+                  </FadeInView>
                 ))}
               </View>
             )}
           </ScrollView>
         </View>
       </View>
+
+      <SortSheet visible={sortOpen} value={sort} onSelect={setSort} onClose={() => setSortOpen(false)} />
+      <FilterSheet
+        visible={filterOpen}
+        base={base}
+        petTypesOf={petTypesOf}
+        value={filters}
+        onApply={setFilters}
+        onClose={() => setFilterOpen(false)}
+      />
     </View>
   );
 };
@@ -182,9 +285,7 @@ const ProductCard = ({ product: p, qty, wishlisted, onPress, onAdd, onInc, onDec
           </View>
         )}
         <MediaThumb uri={p.imageUrl} emoji={p.emoji} emojiSize={52} style={StyleSheet.absoluteFill} />
-        <TouchableOpacity style={styles.cardHeartBtn} onPress={onToggleWishlist} hitSlop={6}>
-          <Ionicons name={wishlisted ? 'heart' : 'heart-outline'} size={15} color={wishlisted ? COLORS.primary : COLORS.gray} />
-        </TouchableOpacity>
+        <HeartButton style={styles.cardHeartBtn} active={wishlisted} onPress={onToggleWishlist} size={15} />
 
         {/* ADD / stepper — Blinkit signature control */}
         <View style={styles.addWrap}>
@@ -242,6 +343,30 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: 14, color: COLORS.black },
 
+  toolbar: { backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.grayBorder, paddingVertical: 10 },
+  toolRow: { flexDirection: 'row', gap: 10, paddingHorizontal: GRID_PAD + 2 },
+  toolBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, minHeight: 40,
+    borderRadius: 12, borderWidth: 1.5, borderColor: COLORS.grayBorder, backgroundColor: COLORS.white, paddingHorizontal: 10,
+  },
+  toolBtnOn: { borderColor: COLORS.primary, backgroundColor: COLORS.primaryLight },
+  toolText: { flexShrink: 1, fontSize: 13.5, fontWeight: '700', color: COLORS.ink },
+  toolTextOn: { color: COLORS.primaryDark, fontWeight: '800' },
+  toolBadge: {
+    minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 5, backgroundColor: COLORS.primary,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  toolBadgeText: { color: COLORS.white, fontSize: 10.5, fontWeight: '800' },
+  chipRow: { gap: 8, paddingHorizontal: GRID_PAD + 2, paddingTop: 10, alignItems: 'center' },
+  chip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5, maxWidth: 200, height: 32, paddingHorizontal: 11,
+    borderRadius: 16, backgroundColor: COLORS.primaryLight,
+  },
+  chipText: { flexShrink: 1, fontSize: 12.5, fontWeight: '700', color: COLORS.primaryDark },
+  chipClear: { paddingHorizontal: 6, height: 32, justifyContent: 'center' },
+  chipClearText: { fontSize: 12.5, fontWeight: '800', color: COLORS.errorDark },
+  emptyBtn: { marginTop: 14, backgroundColor: COLORS.primary, borderRadius: 12, paddingHorizontal: 20, paddingVertical: 10 },
+  emptyBtnText: { color: COLORS.white, fontSize: 13.5, fontWeight: '800' },
   body: { flex: 1, flexDirection: 'row' },
 
   /* Left category rail */
@@ -273,7 +398,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.9)', alignItems: 'center', justifyContent: 'center',
   },
   discountBadge: {
-    position: 'absolute', top: 0, left: 0, backgroundColor: COLORS.primary,
+    position: 'absolute', top: 0, left: 0, zIndex: 2, backgroundColor: COLORS.primary,
     paddingHorizontal: 5, paddingVertical: 3, borderTopLeftRadius: 10, borderBottomRightRadius: 10, alignItems: 'center',
   },
   discountText: { color: COLORS.white, fontSize: 8, fontWeight: '800', lineHeight: 10 },

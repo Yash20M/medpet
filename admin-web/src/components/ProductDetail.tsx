@@ -1,4 +1,4 @@
-import { Product } from '../types';
+import { Product, petTypesLabel } from '../types';
 
 const rupee = (n: number) => `₹${n.toLocaleString('en-IN')}`;
 
@@ -44,6 +44,7 @@ export default function ProductDetail({ product: p, onBack, onEdit, onDelete }: 
 
             <div className="pd-flags">
               {p.is_featured && <span className="tag green">Featured</span>}
+              {p.is_accessory && <span className="tag gray">Accessory · {petTypesLabel(p.pet_types)}</span>}
               {p.in_stock ? <span className="tag gray">In stock</span> : <span className="tag red">Out of stock</span>}
               {low && <span className="tag red">Low stock</span>}
             </div>
@@ -52,6 +53,12 @@ export default function ProductDetail({ product: p, onBack, onEdit, onDelete }: 
           <div className="card">
             <h2>Inventory &amp; Ratings</h2>
             <div className="detail-line"><span className="muted">Stock quantity</span><strong>{p.stock_quantity}</strong></div>
+            {(p.variants ?? []).map((v) => (
+              <div className="detail-line" key={v.id}>
+                <span className="muted">Size {v.label}</span>
+                <span>{rupee(v.discount_price)} <s className="muted">{rupee(v.original_price)}</s> · {v.stock_quantity} in stock</span>
+              </div>
+            ))}
             <div className="detail-line"><span className="muted">Low-stock alert below</span><span>{p.low_stock_threshold}</span></div>
             <div className="detail-line"><span className="muted">Rating</span><span>⭐ {p.rating} ({p.reviews_count} reviews)</span></div>
             <div className="detail-line"><span className="muted">Product ID</span><span>#{p.id}</span></div>

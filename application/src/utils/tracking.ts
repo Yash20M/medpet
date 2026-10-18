@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../theme/colors';
-import { LivePhase, LatLng, OrderStatus } from '../services/api';
+import { LivePhase, LatLng, OrderStatus, TrackingState } from '../services/api';
 
 // ─── Map defaults (delivery is not restricted to any single city/region) ────
 /** Fallback pin position before the user has picked a location or granted GPS
@@ -104,4 +104,36 @@ export const splitByProgress = (pts: XY[], progress: number): { done: XY[]; rest
   const done = pts.slice(0, idx + 1);
   const rest = pts.slice(idx);
   return { done, rest };
+};
+
+// ─── Estimated arrival (no live GPS — a fixed estimate counted down from dispatch) ──
+export interface EtaEstimate {
+  /** Minutes until the rider is expected; null when no route/estimate exists yet. */
+  minutesLeft: number | null;
+  /** Wall-clock arrival, only known once the rider has accepted (the clock starts then). */
+  arrivalAt: Date | null;
+  /** 0..1 share of the estimated trip time already elapsed (for the progress bar). */
+  fraction: number;
+}
+
+/** The route time is store→door only; allow for the rider reaching the store, loading and parking. */
+export const HANDLING_BUFFER_MINUTES = 10;
+
+export const estimateEta = (state: TrackingState | null, now: number = Date.now()): EtaEstimate => {
+  if (!state) return { minutesLeft: null, arrivalAt: null, fraction: 0 };
+  if (state.status === 'delivered') return { minutesLeft: 0, arrivalAt: null, fraction: 1 };
+
+  const route = state.route?.estimatedMinutes ?? state.tracking.etaMinutes ?? null;
+  if (route == null) return { minutesLeft: null, arrivalAt: null, fraction: 0 };
+  const total = route + HANDLING_BUFFER_MINUTES;
+
+  const startedAt = state.tracking.startedAt ? Date.parse(state.tracking.startedAt) : NaN;
+  if (state.status === 'shipped' && !Number.isNaN(startedAt)) {
+    const arrival = startedAt + total * 60_000;
+    const left = Math.max(0, Math.ceil((arrival - now) / 60_000));
+    const fraction = total > 0 ? Math.min(0.95, Math.max(0, (now - startedAt) / (total * 60_000))) : 0;
+    return { minutesLeft: left, arrivalAt: new Date(arrival), fraction };
+  }
+  // Not out for delivery yet: show the trip time that will apply once dispatched.
+  return { minutesLeft: total, arrivalAt: null, fraction: 0 };
 };

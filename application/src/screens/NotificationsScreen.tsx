@@ -1,10 +1,13 @@
 import React, { useEffect } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar,
+  View, StyleSheet, ScrollView, TouchableOpacity,
+  StatusBar,
 } from 'react-native';
+import { Text } from '../components/AppText';
+import FadeInView from '../components/FadeInView';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '../components/Icon';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useNotifications } from '../context/NotificationsContext';
 import { ApiNotification } from '../services/api';
@@ -62,8 +65,9 @@ const NotificationsScreen = ({ navigation }: Props) => {
             <Text style={styles.emptySub}>Offers and order updates will show up here.</Text>
           </View>
         ) : (
-          notifications.map((n: ApiNotification) => (
-            <View key={n.id} style={[styles.card, !n.is_read && styles.cardUnread]}>
+          notifications.map((n: ApiNotification, idx: number) => (
+            <FadeInView key={n.id} delay={idx * 55} distance={18}>
+              <View key={n.id} style={[styles.card, !n.is_read && styles.cardUnread]}>
               <View style={styles.iconWrap}>
                 <Ionicons name={ICONS[n.type] ?? 'notifications'} size={20} color={COLORS.primary} />
               </View>
@@ -76,6 +80,7 @@ const NotificationsScreen = ({ navigation }: Props) => {
                 <Text style={styles.time}>{timeAgo(n.created_at)}</Text>
               </View>
             </View>
+            </FadeInView>
           ))
         )}
       </ScrollView>
@@ -87,7 +92,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.background },
   header: { paddingHorizontal: 16, paddingBottom: 16 },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  iconBtn: { width: 32, padding: 4 },
+  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 18, fontWeight: '800', color: COLORS.white },
   card: {
     flexDirection: 'row', gap: 12, backgroundColor: COLORS.white, borderRadius: 14,

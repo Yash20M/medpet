@@ -1,8 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, StatusBar } from 'react-native';
+import { Text } from '../components/AppText';
+import FadeInView from '../components/FadeInView';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '../components/Icon';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useWishlist } from '../context/WishlistContext';
 import { useCart } from '../context/CartContext';
@@ -44,8 +46,9 @@ const WishlistScreen = ({ navigation }: Props) => {
         />
       ) : (
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 24 }]}>
-          {items.map((p) => (
-            <TouchableOpacity
+          {items.map((p, idx) => (
+            <FadeInView key={p.id} delay={idx * 60} distance={18}>
+              <TouchableOpacity
               key={p.id}
               style={styles.itemCard}
               activeOpacity={0.85}
@@ -70,6 +73,7 @@ const WishlistScreen = ({ navigation }: Props) => {
                 </TouchableOpacity>
               </View>
             </TouchableOpacity>
+            </FadeInView>
           ))}
         </ScrollView>
       )}
@@ -81,7 +85,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.background },
   header: { paddingTop: 12, paddingHorizontal: 20, paddingBottom: 18 },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  iconBtn: { width: 32, padding: 4 },
+  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 18, fontWeight: '800', color: COLORS.white },
   headerSub: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 6, marginLeft: 4 },
   scrollContent: { padding: 20 },

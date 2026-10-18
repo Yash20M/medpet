@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, Text, StyleSheet, Alert } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View, StyleSheet, Alert } from 'react-native';
+import { Text } from '../AppText';
+import Ionicons from '../Icon';
 import { LinearGradient } from 'expo-linear-gradient';
 import PressableScale from '../PressableScale';
 import { NearbyStore } from '../../data/premium';

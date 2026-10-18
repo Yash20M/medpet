@@ -19,7 +19,7 @@ export const attachItems = async (orders: OrderRow[]): Promise<Order[]> => {
   if (orders.length === 0) return [];
   const ids = orders.map((o) => o.id);
   const { rows: items } = await db.query<OrderItemRow>(
-    `SELECT id, order_id, product_id, name, emoji, image_url, price, quantity
+    `SELECT id, order_id, product_id, name, emoji, image_url, price, quantity, variant_id, variant_label
      FROM order_items WHERE order_id = ANY($1) ORDER BY id ASC`,
     [ids]
   );
@@ -60,14 +60,38 @@ export const OrdersService = {
       );
       const byId = new Map(products.map((p) => [p.id, p]));
 
+      const variantIds = dto.items.map((i) => i.variantId).filter((v): v is number => v != null);
+      const { rows: variantRows } = variantIds.length
+        ? await client.query<{ id: number; product_id: number; label: string; discount_price: number; stock_quantity: number }>(
+            `SELECT id, product_id, label, discount_price, stock_quantity FROM product_variants WHERE id = ANY($1)`, [variantIds])
+        : { rows: [] };
+      const variantById = new Map(variantRows.map((v) => [v.id, v]));
+
       let subtotal = 0;
-      const lines: { productId: number; name: string; emoji: string; image_url: string | null; price: number; quantity: number }[] = [];
+      const lines: {
+        productId: number; variantId: number | null; variantLabel: string | null;
+        name: string; emoji: string; image_url: string | null; price: number; quantity: number;
+      }[] = [];
       for (const item of dto.items) {
         const p = byId.get(item.productId);
         if (!p) throw Object.assign(new Error(`Product ${item.productId} not found.`), { statusCode: 404 });
         const quantity = Math.max(1, item.quantity);
-        subtotal += p.discount_price * quantity;
-        lines.push({ productId: p.id, name: p.name, emoji: p.emoji, image_url: p.image_url, price: p.discount_price, quantity });
+        let price = p.discount_price;
+        let name = p.name;
+        let variantId: number | null = null;
+        let variantLabel: string | null = null;
+        if (item.variantId != null) {
+          const v = variantById.get(item.variantId);
+          if (!v || v.product_id !== p.id) {
+            throw Object.assign(new Error(`${p.name}: the selected size is no longer available.`), { statusCode: 404 });
+          }
+          price = v.discount_price;
+          name = `${p.name} (${v.label})`;
+          variantId = v.id;
+          variantLabel = v.label;
+        }
+        subtotal += price * quantity;
+        lines.push({ productId: p.id, variantId, variantLabel, name, emoji: p.emoji, image_url: p.image_url, price, quantity });
       }
 
       const deliveryFee = subtotal >= FREE_DELIVERY_OVER ? 0 : DELIVERY_FEE;
@@ -113,10 +137,16 @@ export const OrdersService = {
 
       for (const line of lines) {
         await client.query(
-          `INSERT INTO order_items (order_id, product_id, name, emoji, image_url, price, quantity)
-           VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-          [order.id, line.productId, line.name, line.emoji, line.image_url, line.price, line.quantity]
+          `INSERT INTO order_items (order_id, product_id, name, emoji, image_url, price, quantity, variant_id, variant_label)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+          [order.id, line.productId, line.name, line.emoji, line.image_url, line.price, line.quantity, line.variantId, line.variantLabel]
         );
+        if (line.variantId != null) {
+          await client.query(
+            `UPDATE product_variants SET stock_quantity = GREATEST(stock_quantity - $1, 0) WHERE id = $2`,
+            [line.quantity, line.variantId]
+          );
+        }
         await client.query(
           `UPDATE products SET
              stock_quantity = GREATEST(stock_quantity - $1, 0),

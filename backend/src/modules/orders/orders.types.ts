@@ -11,6 +11,9 @@ export interface OrderItemRow {
   image_url: string | null;
   price: number;
   quantity: number;
+  variant_id?: number | null;
+  /** Size picked for this line, e.g. "10kg" (already part of `name`). */
+  variant_label?: string | null;
 }
 
 export interface OrderRow {
@@ -52,7 +55,7 @@ export interface DeliveryOrder extends Order {
 }
 
 export interface CreateOrderDto {
-  items: { productId: number; quantity: number }[];
+  items: { productId: number; variantId?: number | null; quantity: number }[];
   address?: string;
   contactPhone?: string;
   paymentMethod?: PaymentMethod;

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Animated, Easing, LayoutChangeEvent } from 'react-native';
+import { View, StyleSheet, Animated, Easing, LayoutChangeEvent } from 'react-native';
+import { Text } from '../AppText';
 import { LinearGradient } from 'expo-linear-gradient';
 import { LatLng } from '../../services/api';
 import { bboxOf, makeProjector, splitByProgress, XY } from '../../utils/tracking';

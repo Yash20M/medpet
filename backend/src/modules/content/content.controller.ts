@@ -6,6 +6,9 @@ import {
 } from './content.types';
 import { sendSuccess, sendError } from '../../shared/utils/response';
 
+const statusOf = (err: unknown): number =>
+  (err as { statusCode?: number }).statusCode ?? 500;
+
 export const ContentController = {
   // Public — one aggregate payload for the app's Home screen.
   async home(_req: Request, res: Response): Promise<void> {
@@ -39,17 +42,31 @@ export const ContentController = {
   },
 
   // ─── Brands ──────────────────────────────────────────────
+  /** Public: active brands that have products (the app's "See all brands"). */
+  async listBrandsPublic(_req: Request, res: Response): Promise<void> {
+    sendSuccess(res, { message: 'Brands fetched.', data: await ContentService.listBrands(true, true) });
+  },
+  /** Admin: every brand with product counts. */
+  async listBrandsAdmin(_req: Request, res: Response): Promise<void> {
+    sendSuccess(res, { message: 'Brands fetched.', data: await ContentService.listBrands(false) });
+  },
   async createBrand(req: Request, res: Response): Promise<void> {
-    sendSuccess(res, { message: 'Brand created.', data: await ContentService.createBrand(req.body as CreateBrandDto) }, 201);
+    try {
+      sendSuccess(res, { message: 'Brand created.', data: await ContentService.createBrand(req.body as CreateBrandDto) }, 201);
+    } catch (err) { sendError(res, (err as Error).message, statusOf(err)); }
   },
   async updateBrand(req: Request, res: Response): Promise<void> {
-    const data = await ContentService.updateBrand(Number(req.params.id), req.body as UpdateBrandDto);
-    if (!data) { sendError(res, 'Brand not found.', 404); return; }
-    sendSuccess(res, { message: 'Brand updated.', data });
+    try {
+      const data = await ContentService.updateBrand(Number(req.params.id), req.body as UpdateBrandDto);
+      if (!data) { sendError(res, 'Brand not found.', 404); return; }
+      sendSuccess(res, { message: 'Brand updated.', data });
+    } catch (err) { sendError(res, (err as Error).message, statusOf(err)); }
   },
   async removeBrand(req: Request, res: Response): Promise<void> {
-    if (!(await ContentService.removeBrand(Number(req.params.id)))) { sendError(res, 'Brand not found.', 404); return; }
-    sendSuccess(res, { message: 'Brand deleted.' });
+    try {
+      if (!(await ContentService.removeBrand(Number(req.params.id)))) { sendError(res, 'Brand not found.', 404); return; }
+      sendSuccess(res, { message: 'Brand deleted.' });
+    } catch (err) { sendError(res, (err as Error).message, statusOf(err)); }
   },
 
   // ─── Testimonials ────────────────────────────────────────

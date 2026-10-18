@@ -17,7 +17,6 @@ export interface HomeContent {
   stores: NearbyStore[];
   flashProducts: Product[];
   etaMins: number;
-  flashEndsAt: string | null;
   loaded: boolean;
   reload: () => void;
 }
@@ -31,7 +30,6 @@ const FALLBACK: Omit<HomeContent, 'loaded' | 'reload'> = {
   stores: NEARBY_STORES,
   flashProducts: [],
   etaMins: 18,
-  flashEndsAt: null,
 };
 
 const mapContent = (c: ApiHomeContent): Omit<HomeContent, 'loaded' | 'reload'> => ({
@@ -46,6 +44,7 @@ const mapContent = (c: ApiHomeContent): Omit<HomeContent, 'loaded' | 'reload'> =
   })),
   brands: c.brands.map((b) => ({
     id: String(b.id), name: b.name, emoji: b.emoji, tint: b.tint,
+    apiId: b.id, imageUrl: b.image_url, productCount: b.product_count,
   })),
   testimonials: c.testimonials.map((t) => ({
     id: String(t.id), owner: t.owner_name, petName: t.pet_name,
@@ -57,7 +56,6 @@ const mapContent = (c: ApiHomeContent): Omit<HomeContent, 'loaded' | 'reload'> =
   })),
   flashProducts: c.flash_products.map(mapProduct),
   etaMins: Number(c.settings.delivery_eta_minutes) || 18,
-  flashEndsAt: c.settings.flash_sale_ends_at || null,
 });
 
 /** Admin-managed Home content, fetched once per mount with pull-to-refresh

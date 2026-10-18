@@ -1,11 +1,12 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, StatusBar, Dimensions, RefreshControl, Alert,
+  View, StyleSheet, ScrollView, TouchableOpacity,
+  StatusBar, Dimensions, PixelRatio, useWindowDimensions, RefreshControl, Alert,
 } from 'react-native';
+import { Text, TextInput } from '../components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '../components/Icon';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
@@ -16,10 +17,13 @@ import { useRequireAuth } from '../hooks/useRequireAuth';
 import BannerCarousel from '../components/BannerCarousel';
 import MediaThumb from '../components/MediaThumb';
 import SectionHeader from '../components/SectionHeader';
+import FadeInView from '../components/FadeInView';
+import AnimatedBadge from '../components/AnimatedBadge';
+import HeartButton from '../components/HeartButton';
+import PressableScale from '../components/PressableScale';
 import { PetCard, AddPetPrompt } from '../components/PetCard';
 import AddPetModal from '../components/AddPetModal';
 import DeliveryCard from '../components/home/DeliveryCard';
-import QuickActions from '../components/home/QuickActions';
 import FlashSale from '../components/home/FlashSale';
 import HealthReminderCard from '../components/home/HealthReminderCard';
 import VetConsultCard from '../components/home/VetConsultCard';
@@ -29,16 +33,22 @@ import HealthTipsRow from '../components/home/HealthTipsRow';
 import NearbyStores from '../components/home/NearbyStores';
 import RecentlyPurchased from '../components/home/RecentlyPurchased';
 import { COLORS, GRADIENTS, RADII } from '../theme/colors';
+import { textScale } from '../theme/responsive';
+import { isPetPromptSuppressed } from '../utils/petPrompt';
 import { RootStackParamList } from '../types/navigation.types';
-import { QuickAction } from '../data/premium';
 import { formatPrice } from '../types/product.types';
-import { useCategories, useProducts, useOffers } from '../hooks/useCatalog';
+import { useCategories, useProducts, useOffers, useAccessories } from '../hooks/useCatalog';
+import AccessoriesSection from '../components/home/AccessoriesSection';
 import { useHomeContent } from '../hooks/useHomeContent';
+import { HOME_SECTIONS } from '../config/features';
 import { orderAPI, trackingAPI, LivePhase } from '../services/api';
-import { TRACKABLE_STATUSES } from '../utils/tracking';
+import { TRACKABLE_STATUSES, phaseFromStatus, estimateEta } from '../utils/tracking';
 
 const { width } = Dimensions.get('window');
 const CARD_W = (width - 52) / 2;
+
+// Featured products shown on Home; the rest live behind "See all".
+const FEATURED_ON_HOME = 6;
 
 // Show the "add your pet" nudge at most once per app session.
 let petPromptShownThisSession = false;
@@ -57,9 +67,12 @@ const HomeScreen = ({ navigation }: Props) => {
   const { hasPets, primaryPet, loaded: petsLoaded } = usePets();
   const requireAuth = useRequireAuth();
   const insets = useSafeAreaInsets();
+  const { width: winW } = useWindowDimensions();
+  const compact = winW < 360 || PixelRatio.getFontScale() > 1.1;
   const { data: categories, reload: reloadCategories } = useCategories();
   const { data: featured, reload: reloadFeatured } = useProducts({ featured: true });
   const { data: offers, reload: reloadOffers } = useOffers();
+  const { data: accessories, reload: reloadAccessories } = useAccessories();
   const content = useHomeContent();
   const [search, setSearch] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -76,8 +89,10 @@ const HomeScreen = ({ navigation }: Props) => {
       let etaMins: number | null = null;
       try {
         const t = await trackingAPI.get(trackable.id);
-        phase = t.data.phase;
-        etaMins = t.data.tracking.etaMinutes ?? t.data.route?.estimatedMinutes ?? null;
+        // No live GPS any more: the stage follows the order status and the ETA is a
+        // fixed estimate counted down from when the rider accepted.
+        phase = phaseFromStatus(t.data.status, null);
+        etaMins = estimateEta(t.data).minutesLeft;
       } catch { /* order exists but tracking not dispatched yet — show without ETA */ }
       setActiveOrder({ id: trackable.id, phase, etaMins });
     } catch {
@@ -91,7 +106,7 @@ const HomeScreen = ({ navigation }: Props) => {
   // one if none exist. `petsLoaded` only flips true after the first fetch, so
   // this fires once on a stable condition (not during the loading transient).
   useEffect(() => {
-    if (isAuthenticated && petsLoaded && !hasPets && !petPromptShownThisSession) {
+    if (isAuthenticated && petsLoaded && !hasPets && !petPromptShownThisSession && !isPetPromptSuppressed()) {
       petPromptShownThisSession = true;
       const t = setTimeout(() => setShowPetModal(true), 600);
       return () => clearTimeout(t);
@@ -101,9 +116,9 @@ const HomeScreen = ({ navigation }: Props) => {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     content.reload();
-    await Promise.all([reloadCategories(), reloadFeatured(), reloadOffers(), loadActiveOrder()]);
+    await Promise.all([reloadCategories(), reloadFeatured(), reloadOffers(), reloadAccessories(), loadActiveOrder()]);
     setRefreshing(false);
-  }, [reloadCategories, reloadFeatured, reloadOffers, content.reload, loadActiveOrder]);
+  }, [reloadCategories, reloadFeatured, reloadOffers, reloadAccessories, content.reload, loadActiveOrder]);
 
   const greeting = (): string => {
     const h = new Date().getHours();
@@ -119,21 +134,6 @@ const HomeScreen = ({ navigation }: Props) => {
   const comingSoon = (feature: string) =>
     Alert.alert(feature, 'This service is coming to your area very soon. Stay tuned! 🐾');
 
-  const handleQuickAction = (action: QuickAction) => {
-    switch (action.id) {
-      case 'medicines': navigation.navigate('ProductList', { title: 'Medicines' }); break;
-      case 'grooming': navigation.navigate('ProductList', { title: 'Grooming' }); break;
-      case 'vet': comingSoon('Vet Consultation'); break;
-      case 'prescription': comingSoon('Upload Prescription'); break;
-      case 'vaccination': comingSoon('Book Vaccination'); break;
-      case 'emergency':
-        Alert.alert('Emergency Care 🚨', '24/7 emergency helpline:\n1800-PET-HELP\n\nNearest 24h clinic: MedPet Indiranagar (1.2 km)');
-        break;
-      case 'insurance': comingSoon('Pet Insurance'); break;
-      case 'subscription': comingSoon('Subscription Plans'); break;
-    }
-  };
-
   const openSupportChat = () =>
     requireAuth(() => navigation.navigate('SupportTickets'), 'Login');
 
@@ -146,22 +146,20 @@ const HomeScreen = ({ navigation }: Props) => {
         <View style={styles.headerDecor} />
         <View style={styles.headerDecor2} />
         <View style={styles.headerTop}>
-          <View>
-            <Text style={styles.greeting}>{greeting()}, {user?.name?.split(' ')[0] ?? 'Pet Parent'} 👋</Text>
-            <Text style={styles.headerSub}>What does your pet need today?</Text>
+          <View style={styles.greetingWrap}>
+            <Text style={styles.greeting} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
+              {greeting()}, {user?.name?.split(' ')[0] ?? 'Pet Parent'} 👋
+            </Text>
+            <Text style={styles.headerSub} numberOfLines={1}>What does your pet need today?</Text>
           </View>
           <View style={styles.headerActions}>
             <TouchableOpacity style={styles.iconBtn} onPress={openNotifications}>
-              <Ionicons name="notifications-outline" size={23} color={COLORS.white} />
-              {unread > 0 && (
-                <View style={styles.cartBadge}><Text style={styles.cartBadgeText}>{unread}</Text></View>
-              )}
+              <Ionicons name="notifications-outline" size={24} color={COLORS.white} />
+              {unread > 0 && <AnimatedBadge count={unread} tone="accent" style={styles.cartBadge} />}
             </TouchableOpacity>
             <TouchableOpacity style={styles.iconBtn} onPress={openCart}>
               <Ionicons name="cart-outline" size={24} color={COLORS.white} />
-              {itemCount > 0 && (
-                <View style={styles.cartBadge}><Text style={styles.cartBadgeText}>{itemCount}</Text></View>
-              )}
+              {itemCount > 0 && <AnimatedBadge count={itemCount} tone="accent" style={styles.cartBadge} />}
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.avatar}
@@ -178,7 +176,8 @@ const HomeScreen = ({ navigation }: Props) => {
           <Ionicons name="search-outline" size={20} color={COLORS.gray} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search medicines, food, supplements..."
+            placeholder={compact ? 'Search' : 'Search medicines, food & more'}
+            numberOfLines={1}
             placeholderTextColor={COLORS.gray}
             value={search}
             onChangeText={setSearch}
@@ -191,12 +190,6 @@ const HomeScreen = ({ navigation }: Props) => {
             <View style={styles.searchExtras}>
               <TouchableOpacity hitSlop={6} onPress={() => comingSoon('Voice Search')}>
                 <Ionicons name="mic-outline" size={19} color={COLORS.primary} />
-              </TouchableOpacity>
-              <TouchableOpacity hitSlop={6} onPress={() => comingSoon('Camera Search')}>
-                <Ionicons name="camera-outline" size={19} color={COLORS.primary} />
-              </TouchableOpacity>
-              <TouchableOpacity hitSlop={6} onPress={() => comingSoon('Barcode Scanner')}>
-                <Ionicons name="barcode-outline" size={19} color={COLORS.primary} />
               </TouchableOpacity>
             </View>
           )}
@@ -232,15 +225,9 @@ const HomeScreen = ({ navigation }: Props) => {
         )}
 
         {/* ─── Banner Carousel ─────────────────────────────── */}
-        <View style={styles.section}>
+        <FadeInView style={styles.section} delay={0}>
           <BannerCarousel banners={offers} />
-        </View>
-
-        {/* ─── Quick Actions ───────────────────────────────── */}
-        <View style={styles.section}>
-          <SectionHeader title="Services" subtitle="Everything your pet needs, in one tap" />
-          <QuickActions onAction={handleQuickAction} />
-        </View>
+        </FadeInView>
 
         {/* ─── Categories ──────────────────────────────────── */}
         <View style={styles.section}>
@@ -249,11 +236,11 @@ const HomeScreen = ({ navigation }: Props) => {
             onAction={() => navigation.navigate('ProductList', { title: 'All Products' })}
           />
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingVertical: 6, paddingRight: 4 }}>
-            {categories.map((c) => (
-              <TouchableOpacity
-                key={c.id}
+            {categories.map((c, i) => (
+              <FadeInView key={c.id} delay={90 + i * 60} distance={14}>
+              <PressableScale
                 style={[styles.catCard, { backgroundColor: c.color }]}
-                activeOpacity={0.8}
+                scaleTo={0.94}
                 onPress={() => navigation.navigate('ProductList', { category: c.label })}
               >
                 <View style={[styles.catIconBg, { backgroundColor: c.iconBg }]}>
@@ -262,7 +249,8 @@ const HomeScreen = ({ navigation }: Props) => {
                 <Text style={styles.catLabel}>{c.label}</Text>
                 <Text style={styles.catMeta}>{catCount(c.id)} items</Text>
                 <Text style={styles.catPrice}>from {formatPrice(catStartPrice(c.id))}</Text>
-              </TouchableOpacity>
+              </PressableScale>
+              </FadeInView>
             ))}
           </ScrollView>
         </View>
@@ -272,7 +260,6 @@ const HomeScreen = ({ navigation }: Props) => {
         <View style={styles.section}>
           <FlashSale
             products={content.flashProducts.length > 0 ? content.flashProducts : featured}
-            endsAt={content.flashEndsAt}
             onProduct={(id) => navigation.navigate('ProductDetail', { productId: id })}
           />
         </View>
@@ -281,14 +268,16 @@ const HomeScreen = ({ navigation }: Props) => {
         <View style={styles.section}>
           <SectionHeader
             title="Featured Products"
-            onAction={() => navigation.navigate('ProductList', { title: 'All Products' })}
+            onAction={featured.length > FEATURED_ON_HOME
+              ? () => navigation.navigate('ProductList', { title: 'Featured Products', featured: true })
+              : undefined}
           />
           <View style={styles.grid}>
-            {featured.map((p) => (
-              <TouchableOpacity
-                key={p.id}
+            {featured.slice(0, FEATURED_ON_HOME).map((p, i) => (
+              <FadeInView key={p.id} delay={i * 70} distance={22}>
+              <PressableScale
                 style={styles.productCard}
-                activeOpacity={0.85}
+                scaleTo={0.97}
                 onPress={() => navigation.navigate('ProductDetail', { productId: p.id })}
               >
                 <View style={styles.productImg}>
@@ -297,16 +286,11 @@ const HomeScreen = ({ navigation }: Props) => {
                     <Ionicons name="flash" size={9} color={COLORS.white} />
                     <Text style={styles.fastBadgeText}>Fast</Text>
                   </View>
-                  <TouchableOpacity
+                  <HeartButton
                     style={styles.wishlistBtn}
+                    active={isWishlisted(p.id)}
                     onPress={() => requireAuth(() => toggle(p), 'Login')}
-                  >
-                    <Ionicons
-                      name={isWishlisted(p.id) ? 'heart' : 'heart-outline'}
-                      size={16}
-                      color={isWishlisted(p.id) ? COLORS.primary : COLORS.gray}
-                    />
-                  </TouchableOpacity>
+                  />
                 </View>
                 <View style={styles.productInfo}>
                   <Text style={styles.productBrand}>{p.brand}</Text>
@@ -321,17 +305,26 @@ const HomeScreen = ({ navigation }: Props) => {
                     <Text style={styles.price}>{formatPrice(p.price)}</Text>
                     <Text style={styles.oldPrice}>{formatPrice(p.originalPrice)}</Text>
                   </View>
-                  <TouchableOpacity style={styles.addBtn} onPress={() => addItem(p)} disabled={!p.inStock}>
+                  <PressableScale style={styles.addBtn} onPress={() => addItem(p)} disabled={!p.inStock} scaleTo={0.93}>
                     <LinearGradient colors={p.inStock ? GRADIENTS.primary : ['#CBD5E1', '#94A3B8']} style={styles.addBtnGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
                       <Ionicons name="add" size={16} color={COLORS.white} />
                       <Text style={styles.addBtnText}>Add</Text>
                     </LinearGradient>
-                  </TouchableOpacity>
+                  </PressableScale>
                 </View>
-              </TouchableOpacity>
+              </PressableScale>
+              </FadeInView>
             ))}
           </View>
         </View>
+
+        {/* ─── Accessories (by pet type) ───────────────────── */}
+        <AccessoriesSection
+          accessories={accessories}
+          pet={primaryPet}
+          onProduct={(id) => navigation.navigate('ProductDetail', { productId: id })}
+          onSeeAll={(petType) => navigation.navigate('Accessories', { petType })}
+        />
 
         {/* ─── Buy Again ───────────────────────────────────── */}
         {isAuthenticated && (
@@ -359,13 +352,19 @@ const HomeScreen = ({ navigation }: Props) => {
         {/* ─── Popular Brands ──────────────────────────────── */}
         {content.brands.length > 0 && (
           <View style={styles.section}>
-            <SectionHeader title="Popular Brands" />
-            <BrandsRow brands={content.brands} onBrand={(name) => navigation.navigate('ProductList', { title: name })} />
+            <SectionHeader title="Popular Brands" onAction={() => navigation.navigate('Brands')} />
+            <BrandsRow
+              brands={content.brands}
+              onBrand={(b) => navigation.navigate('ProductList', {
+                title: b.name,
+                ...(b.apiId ? { brandId: b.apiId } : { brand: b.name }),
+              })}
+            />
           </View>
         )}
 
         {/* ─── Reviews ─────────────────────────────────────── */}
-        {content.testimonials.length > 0 && (
+        {HOME_SECTIONS.reviews && content.testimonials.length > 0 && (
           <View style={styles.section}>
             <SectionHeader title="Loved by Pet Parents" subtitle="Real reviews from real families" />
             <ReviewsCarousel testimonials={content.testimonials} />
@@ -384,7 +383,7 @@ const HomeScreen = ({ navigation }: Props) => {
         )}
 
         {/* ─── Nearby Stores ───────────────────────────────── */}
-        {content.stores.length > 0 && (
+        {HOME_SECTIONS.stores && content.stores.length > 0 && (
           <View style={[styles.section, { marginBottom: 24 }]}>
             <SectionHeader title="Stores Near You" />
             <NearbyStores stores={content.stores} />
@@ -415,18 +414,13 @@ const styles = StyleSheet.create({
     width: 160, height: 160, borderRadius: 80,
     backgroundColor: 'rgba(255,255,255,0.05)',
   },
-  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
+  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 8 },
+  greetingWrap: { flex: 1, minWidth: 0 },
   greeting:  { fontSize: 18, fontWeight: '700', color: COLORS.white, marginBottom: 2 },
   headerSub: { fontSize: 13, color: 'rgba(255,255,255,0.75)' },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  iconBtn:   { position: 'relative', padding: 2 },
-  cartBadge: {
-    position: 'absolute', top: -6, right: -8,
-    minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4,
-    backgroundColor: COLORS.accent, alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5, borderColor: COLORS.primaryDark,
-  },
-  cartBadgeText: { color: COLORS.black, fontSize: 10, fontWeight: '800' },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 4, flexShrink: 0 },
+  iconBtn:   { position: 'relative', width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  cartBadge: { position: 'absolute', top: 1, right: 0 },
   avatar: {
     width: 38, height: 38, borderRadius: 19,
     backgroundColor: 'rgba(255,255,255,0.2)',
@@ -440,8 +434,8 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1, shadowRadius: 12, elevation: 4,
   },
-  searchInput: { flex: 1, fontSize: 14, color: COLORS.black },
-  searchExtras: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  searchInput: { flex: 1, minWidth: 0, fontSize: 14, color: COLORS.black, paddingVertical: 0 },
+  searchExtras: { flexDirection: 'row', alignItems: 'center', gap: 12, flexShrink: 0 },
   scroll:        { flex: 1 },
   scrollContent: { paddingTop: 20 },
   section:       { paddingHorizontal: 20, marginBottom: 24 },
@@ -472,7 +466,7 @@ const styles = StyleSheet.create({
   },
   productInfo:  { padding: 12 },
   productBrand: { fontSize: 10, color: COLORS.gray, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 3 },
-  productName:  { fontSize: 13, fontWeight: '700', color: COLORS.black, marginBottom: 5, lineHeight: 18 },
+  productName:  { fontSize: 13, fontWeight: '700', color: COLORS.black, marginBottom: 5, lineHeight: 18, minHeight: 36 * textScale() },
   ratingRow:    { flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: 6 },
   ratingText:   { fontSize: 11, fontWeight: '700', color: COLORS.black },
   reviewText:   { fontSize: 11, color: COLORS.gray },

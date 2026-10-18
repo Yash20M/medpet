@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import React from 'react';
+import { View, StyleSheet, ScrollView } from 'react-native';
+import { Text } from '../AppText';
 import { LinearGradient } from 'expo-linear-gradient';
 import PressableScale from '../PressableScale';
 import MediaThumb from '../MediaThumb';
@@ -10,30 +10,7 @@ import { COLORS, RADII, SHADOWS } from '../../theme/colors';
 interface Props {
   products: Product[];
   onProduct: (id: string) => void;
-  /** Admin-set sale end (ISO). Absent/past → rolling 6-hour window. */
-  endsAt?: string | null;
 }
-
-/** Fallback deal window resets every 6 hours so the countdown is always live. */
-const WINDOW_MS = 6 * 60 * 60 * 1000;
-
-const pad = (n: number) => String(n).padStart(2, '0');
-
-const useCountdown = (endsAt?: string | null): string => {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
-  const target = endsAt ? new Date(endsAt).getTime() : NaN;
-  const remaining = Number.isFinite(target) && target > now
-    ? target - now
-    : WINDOW_MS - (now % WINDOW_MS);
-  const h = Math.floor(remaining / 3600000);
-  const m = Math.floor((remaining % 3600000) / 60000);
-  const s = Math.floor((remaining % 60000) / 1000);
-  return `${pad(h)}:${pad(m)}:${pad(s)}`;
-};
 
 /** Percentage of "stock claimed" — deterministic per product so bars differ. */
 const claimedPct = (id: string): number => {
@@ -41,8 +18,7 @@ const claimedPct = (id: string): number => {
   return 35 + (seed % 50);
 };
 
-const FlashSale = ({ products, onProduct, endsAt }: Props) => {
-  const countdown = useCountdown(endsAt);
+const FlashSale = ({ products, onProduct }: Props) => {
   if (products.length === 0) return null;
 
   return (
@@ -51,10 +27,6 @@ const FlashSale = ({ products, onProduct, endsAt }: Props) => {
         <View style={styles.titleRow}>
           <Text style={styles.bolt}>⚡</Text>
           <Text style={styles.title}>Flash Sale</Text>
-        </View>
-        <View style={styles.timer}>
-          <Ionicons name="time" size={13} color={COLORS.white} />
-          <Text style={styles.timerText}>{countdown}</Text>
         </View>
       </View>
 
@@ -95,11 +67,6 @@ const styles = StyleSheet.create({
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   bolt: { fontSize: 18 },
   title: { fontSize: 17, fontWeight: '800', color: '#9A3412' },
-  timer: {
-    flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: '#EA580C', borderRadius: RADII.pill, paddingHorizontal: 10, paddingVertical: 5,
-  },
-  timerText: { color: COLORS.white, fontSize: 12, fontWeight: '800', fontVariant: ['tabular-nums'] },
   card: { width: 128, backgroundColor: COLORS.white, borderRadius: RADII.md, padding: 10, ...SHADOWS.card },
   imgWrap: { height: 76, borderRadius: RADII.md, backgroundColor: COLORS.grayLight, overflow: 'hidden', marginBottom: 8 },
   offBadge: {

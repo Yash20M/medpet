@@ -55,6 +55,8 @@ export type UpdateCouponDto = Partial<CreateCouponDto>;
 
 export interface CartItemInput {
   productId: number;
+  /** Size variant picked for the product; its price replaces the product's. */
+  variantId?: number | null;
   quantity: number;
 }
 

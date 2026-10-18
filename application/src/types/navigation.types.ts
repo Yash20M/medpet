@@ -23,7 +23,10 @@ export type RootStackParamList = {
   // Stack-only (drill-down / modal) routes.
   Login: undefined;
   Signup: undefined;
-  ProductList: { category?: string; title?: string } | undefined;
+  ProductList: { category?: string; title?: string; featured?: boolean; brandId?: number; brand?: string } | undefined;
+  Brands: undefined;
+  /** `petType` pre-selects a pet tab (dog, cat…); omitted/'all' shows everything. */
+  Accessories: { petType?: string } | undefined;
   ProductDetail: { productId: string };
   Checkout: undefined;
   Notifications: undefined;
@@ -42,6 +45,7 @@ export type RootStackParamList = {
 export type DeliveryStackParamList = {
   DeliveryHome: undefined;
   DeliveryOrderDetail: { orderId: number };
+  DeliveryHistory: undefined;
   // Auth modal is reachable from the delivery stack too (e.g. after logout).
   Login: undefined;
 };

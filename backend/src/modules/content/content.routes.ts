@@ -13,11 +13,13 @@ const router = Router();
 
 // Public — consumed by the mobile app's Home screen.
 router.get('/home', ContentController.home);
+router.get('/brands', ContentController.listBrandsPublic);
 
 // Admin management.
 router.use(protect, adminOnly);
 
 router.get('/admin/all', ContentController.adminAll);
+router.get('/admin/brands', ContentController.listBrandsAdmin);
 
 router.post('/tips', createTipValidator, validate, ContentController.createTip);
 router.patch('/tips/:id', updateTipValidator, validate, ContentController.updateTip);

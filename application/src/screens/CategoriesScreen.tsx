@@ -1,11 +1,14 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, StatusBar, Dimensions } from 'react-native';
+import { View, StyleSheet, ScrollView, StatusBar, Dimensions } from 'react-native';
+import { Text } from '../components/AppText';
+import FadeInView from '../components/FadeInView';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '../components/Icon';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useCategories } from '../hooks/useCatalog';
-import { QUICK_LINKS } from '../data/products';
+import { useCategories, useAccessories } from '../hooks/useCatalog';
+import { petTypesWithAccessories } from '../utils/accessories';
+import { PET_EMOJI, PET_TYPE_PLURAL } from '../types/pet.types';
 import MediaThumb from '../components/MediaThumb';
 import PressableScale from '../components/PressableScale';
 import { COLORS, GRADIENTS, RADII, SHADOWS } from '../theme/colors';
@@ -24,7 +27,15 @@ const CategoriesScreen = ({ navigation }: Props) => {
   // Only top-level categories appear here; sub-categories surface within them.
   const pets = categories.filter((c) => c.parentId == null);
 
-  const openList = (params: { category?: string; title?: string }) =>
+  const { data: accessories } = useAccessories();
+  const accessoryTiles = [
+    { key: 'all', label: 'All Accessories', emoji: '🛍️', petType: undefined as string | undefined },
+    ...petTypesWithAccessories(accessories).map((t) => ({
+      key: t, label: `${PET_TYPE_PLURAL[t]} Accessories`, emoji: PET_EMOJI[t], petType: t as string | undefined,
+    })),
+  ];
+
+  const openList =(params: { category?: string; title?: string }) =>
     navigation.navigate('ProductList', params);
 
   return (
@@ -49,8 +60,9 @@ const CategoriesScreen = ({ navigation }: Props) => {
           <Text style={styles.sectionCount}>{pets.length}</Text>
         </View>
         <View style={styles.grid}>
-          {pets.map((c) => (
-            <PressableScale key={c.id} style={[styles.petTile, { backgroundColor: c.color }]} onPress={() => openList({ category: c.label })}>
+          {pets.map((c, i) => (
+            <FadeInView key={c.id} delay={i * 60} distance={18}>
+              <PressableScale key={c.id} style={[styles.petTile, { backgroundColor: c.color }]} onPress={() => openList({ category: c.label })}>
               <View style={[styles.petBubble, { backgroundColor: c.iconBg }]}>
                 <MediaThumb uri={c.imageUrl} emoji={c.icon} emojiSize={26} style={StyleSheet.absoluteFill} rounded={24} />
               </View>
@@ -60,21 +72,24 @@ const CategoriesScreen = ({ navigation }: Props) => {
               </View>
               <Ionicons name="chevron-forward" size={16} color={COLORS.gray} />
             </PressableScale>
+            </FadeInView>
           ))}
         </View>
 
-        {/* ── Shop by Need ── */}
+        {/* ── Shop by Accessories ── */}
         <View style={styles.sectionHead}>
-          <Text style={styles.sectionTitle}>Shop by Need</Text>
+          <Text style={styles.sectionTitle}>Shop by Accessories</Text>
         </View>
         <View style={styles.grid}>
-          {QUICK_LINKS.map((q) => (
-            <PressableScale key={q.id} style={styles.needTile} onPress={() => openList({ title: q.label })}>
-              <View style={[styles.needIcon, { backgroundColor: q.color + '1F' }]}>
-                <Ionicons name={q.icon} size={24} color={q.color} />
-              </View>
-              <Text style={styles.needLabel} numberOfLines={1}>{q.label}</Text>
-            </PressableScale>
+          {accessoryTiles.map((t, i) => (
+            <FadeInView key={t.key} delay={200 + i * 50} distance={18}>
+              <PressableScale style={styles.needTile} onPress={() => navigation.navigate('Accessories', t.petType ? { petType: t.petType } : undefined)}>
+                <View style={[styles.needIcon, { backgroundColor: COLORS.primaryLight }]}>
+                  <Text style={styles.needEmoji}>{t.emoji}</Text>
+                </View>
+                <Text style={styles.needLabel} numberOfLines={1}>{t.label}</Text>
+              </PressableScale>
+            </FadeInView>
           ))}
         </View>
 
@@ -131,6 +146,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white, borderRadius: RADII.lg, padding: 14, ...SHADOWS.card,
   },
   needIcon: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  needEmoji: { fontSize: 22 },
   needLabel: { flex: 1, fontSize: 13, fontWeight: '700', color: COLORS.black },
 
   allBtn: { borderRadius: RADII.lg, ...SHADOWS.floating },

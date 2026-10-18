@@ -24,8 +24,14 @@ export interface Brand {
   name: string;
   emoji: string;
   tint: string;
+  /** Optional logo; the app shows it instead of the emoji when present. */
+  image_url: string | null;
   sort_order: number;
   is_active: boolean;
+  /** Active products linked to this brand. */
+  product_count: number;
+  /** All products (incl. inactive) — what blocks deleting a brand. */
+  total_products?: number;
   created_at: Date;
 }
 
@@ -69,6 +75,7 @@ export interface CreateBrandDto {
   name: string;
   emoji?: string;
   tint?: string;
+  image_url?: string | null;
   sort_order?: number;
 }
 export type UpdateBrandDto = Partial<CreateBrandDto> & { is_active?: boolean };

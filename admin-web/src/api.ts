@@ -3,7 +3,7 @@ import {
   AdminOrder, Order, OrderStatus, AdminUserSummary, DashboardSummary,
   Coupon, AdminSupportTicket, AdminSupportTicketDetail, SupportTicketStatus, SupportMessage,
   AdminContent, HealthTip, Brand, Testimonial, Store,
-  DeliveryPartner, CreateDeliveryPartnerResult,
+  DeliveryPartner, CreateDeliveryPartnerResult, DeliveryHistory,
 } from './types';
 import { ActiveDriver, AdminTrackingState, LivePhase, DeliveryAnalytics } from './liveTypes';
 
@@ -103,6 +103,12 @@ export const api = {
   setDeliveryPartnerActive: (id: number, is_active: boolean) =>
     request<DeliveryPartner>(`/users/admin/delivery-partners/${id}`, { method: 'PATCH', body: JSON.stringify({ is_active }) }),
 
+  deliveryHistory: (p: { from?: string; to?: string; partnerId?: number; page?: number; limit?: number }) => {
+    const qs = new URLSearchParams();
+    Object.entries(p).forEach(([k, v]) => { if (v !== undefined && v !== '') qs.set(k, String(v)); });
+    return request<DeliveryHistory>(`/delivery/admin/history?${qs.toString()}`);
+  },
+
   // ─── Dashboard ──────────────────────────────────────────
   dashboard: () => request<DashboardSummary>('/dashboard/summary'),
 
@@ -138,6 +144,7 @@ export const api = {
   createTip: (b: Record<string, unknown>) => request<HealthTip>('/content/tips', { method: 'POST', body: JSON.stringify(b) }),
   updateTip: (id: number, b: Record<string, unknown>) => request<HealthTip>(`/content/tips/${id}`, { method: 'PATCH', body: JSON.stringify(b) }),
   deleteTip: (id: number) => request<void>(`/content/tips/${id}`, { method: 'DELETE' }),
+  brands: () => request<Brand[]>('/content/admin/brands'),
   createBrand: (b: Record<string, unknown>) => request<Brand>('/content/brands', { method: 'POST', body: JSON.stringify(b) }),
   updateBrand: (id: number, b: Record<string, unknown>) => request<Brand>(`/content/brands/${id}`, { method: 'PATCH', body: JSON.stringify(b) }),
   deleteBrand: (id: number) => request<void>(`/content/brands/${id}`, { method: 'DELETE' }),

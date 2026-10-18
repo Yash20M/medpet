@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useRef } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar,
-  TextInput, ActivityIndicator, KeyboardAvoidingView, Platform,
+  View, StyleSheet, ScrollView, TouchableOpacity,
+  StatusBar, ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { Text, TextInput } from '../components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '../components/Icon';
 import EventSource from 'react-native-sse';
 import * as SecureStore from 'expo-secure-store';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -147,7 +148,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.background },
   header: { paddingHorizontal: 20, paddingBottom: 16 },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  iconBtn: { width: 32, padding: 4 },
+  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { flex: 1, textAlign: 'center', fontSize: 16, fontWeight: '800', color: COLORS.white },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   scrollContent: { padding: 16, paddingBottom: 12, flexGrow: 1 },

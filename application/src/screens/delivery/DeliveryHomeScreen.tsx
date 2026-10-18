@@ -1,16 +1,20 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  View, StyleSheet, ScrollView, TouchableOpacity,
   StatusBar, ActivityIndicator, RefreshControl, Alert,
+  Linking,
 } from 'react-native';
+import { Text } from '../../components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '../../components/Icon';
 import { useFocusEffect } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../../context/AuthContext';
 import { deliveryAPI, ApiDeliveryOrder, DeliverySummary, ApiError } from '../../services/api';
 import { COLORS, GRADIENTS } from '../../theme/colors';
+import FadeInView from '../../components/FadeInView';
+import { googleMapsUrl } from '../../utils/maps';
 import { DeliveryStackParamList } from '../../types/navigation.types';
 import DeliveryOtpModal from '../../components/delivery/DeliveryOtpModal';
 
@@ -114,6 +118,11 @@ const DeliveryHomeScreen = ({ navigation }: Props) => {
     }
   };
 
+  const openMaps = (order: ApiDeliveryOrder) => {
+    const url = googleMapsUrl(order);
+    if (url) Linking.openURL(url).catch(() => Alert.alert('Could not open Google Maps', 'Please install Google Maps or open the link in a browser.'));
+  };
+
   const confirmLogout = () => {
     Alert.alert('Log out?', 'You will need to sign in again to see deliveries.', [
       { text: 'Cancel', style: 'cancel' },
@@ -135,6 +144,9 @@ const DeliveryHomeScreen = ({ navigation }: Props) => {
             <Text style={styles.brand}>🚚 MedPet Partner</Text>
             <Text style={styles.greeting}>Hi {user?.name?.split(' ')[0] ?? 'Rider'} 👋</Text>
           </View>
+          <TouchableOpacity style={[styles.logoutBtn, { marginRight: 8 }]} onPress={() => navigation.navigate('DeliveryHistory')} accessibilityLabel="Delivery history">
+            <Ionicons name="time-outline" size={22} color={COLORS.white} />
+          </TouchableOpacity>
           <TouchableOpacity style={styles.logoutBtn} onPress={confirmLogout}>
             <Ionicons name="log-out-outline" size={22} color={COLORS.white} />
           </TouchableOpacity>
@@ -164,8 +176,9 @@ const DeliveryHomeScreen = ({ navigation }: Props) => {
             <EmptyBlock emoji="📭" title="No orders waiting" sub="New confirmed orders will appear here. Pull down to refresh." />
           )}
 
-          {tab === 'available' && available.map((o) => (
-            <OrderCard
+          {tab === 'available' && available.map((o, idx) => (
+            <FadeInView key={o.id} delay={idx * 70} distance={18}>
+              <OrderCard
               key={o.id}
               order={o}
               onPress={() => navigation.navigate('DeliveryOrderDetail', { orderId: o.id })}
@@ -178,6 +191,7 @@ const DeliveryHomeScreen = ({ navigation }: Props) => {
                 />
               }
             />
+            </FadeInView>
           ))}
 
           {tab === 'mine' && activeMine.length === 0 && completedMine.length === 0 && (
@@ -187,32 +201,44 @@ const DeliveryHomeScreen = ({ navigation }: Props) => {
           {tab === 'mine' && activeMine.length > 0 && (
             <Text style={styles.sectionLabel}>Out for delivery</Text>
           )}
-          {tab === 'mine' && activeMine.map((o) => (
-            <OrderCard
+          {tab === 'mine' && activeMine.map((o, idx) => (
+            <FadeInView key={o.id} delay={idx * 70} distance={18}>
+              <OrderCard
               key={o.id}
               order={o}
               onPress={() => navigation.navigate('DeliveryOrderDetail', { orderId: o.id })}
               action={
-                <PrimaryAction
-                  label="Mark delivered"
-                  icon="checkmark-done-circle"
-                  loading={false}
-                  onPress={() => markDelivered(o)}
-                />
+                <View style={styles.actionRow}>
+                  {!!googleMapsUrl(o) && (
+                    <TouchableOpacity style={[styles.actionBtn, styles.navActionBtn]} onPress={() => openMaps(o)} activeOpacity={0.85}>
+                      <Ionicons name="navigate" size={16} color={COLORS.white} />
+                      <Text style={styles.actionText}>Navigate</Text>
+                    </TouchableOpacity>
+                  )}
+                  <PrimaryAction
+                    label="Mark delivered"
+                    icon="checkmark-done-circle"
+                    loading={false}
+                    onPress={() => markDelivered(o)}
+                  />
+                </View>
               }
             />
+            </FadeInView>
           ))}
 
           {tab === 'mine' && completedMine.length > 0 && (
             <Text style={styles.sectionLabel}>Completed</Text>
           )}
-          {tab === 'mine' && completedMine.map((o) => (
-            <OrderCard
+          {tab === 'mine' && completedMine.map((o, idx) => (
+            <FadeInView key={o.id} delay={idx * 50} distance={18}>
+              <OrderCard
               key={o.id}
               order={o}
               onPress={() => navigation.navigate('DeliveryOrderDetail', { orderId: o.id })}
               done
             />
+            </FadeInView>
           ))}
         </ScrollView>
       )}
@@ -246,7 +272,7 @@ const TabButton = ({ label, active, onPress }: { label: string; active: boolean;
 const PrimaryAction = ({ label, icon, loading, onPress }: {
   label: string; icon: React.ComponentProps<typeof Ionicons>['name']; loading: boolean; onPress: () => void;
 }) => (
-  <TouchableOpacity style={styles.actionBtn} onPress={onPress} disabled={loading} activeOpacity={0.85}>
+  <TouchableOpacity style={[styles.actionBtn, { flex: 1 }]} onPress={onPress} disabled={loading} activeOpacity={0.85}>
     {loading ? <ActivityIndicator size="small" color={COLORS.white} /> : (
       <>
         <Ionicons name={icon} size={16} color={COLORS.white} />
@@ -327,6 +353,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: COLORS.primary, borderRadius: 12, paddingVertical: 12,
   },
+  actionRow: { flexDirection: 'row', gap: 8 },
+  navActionBtn: { flex: 1, backgroundColor: '#1A73E8' },
   actionText: { color: COLORS.white, fontSize: 14, fontWeight: '800' },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   emptyBlock: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60 },

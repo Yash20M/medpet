@@ -26,16 +26,36 @@ robocopy $src $BuildDir /MIR /MT:16 /NFL /NDL /NP /NJH /NJS `
   /XF *.apk | Out-Null
 if ($LASTEXITCODE -ge 8) { throw "robocopy failed ($LASTEXITCODE)" }
 
+# Gradle doesn't track EXPO_PUBLIC_* as an input and Metro caches transformed
+# files, so without this a previous build's API URL gets reused.
+Remove-Item -Recurse -Force -ErrorAction SilentlyContinue `
+  "$BuildDir\android\app\build\generated\assets\react", `
+  "$BuildDir\android\app\build\generated\res\react", `
+  "$BuildDir\android\app\build\generated\assets\createBundleReleaseJsAndAssets", `
+  "$BuildDir\android\app\build\generated\res\createBundleReleaseJsAndAssets", `
+  "$BuildDir\node_modules\.cache", "$env:TEMP\metro-*", "$env:TEMP\haste-map-*"
+
 $env:EXPO_PUBLIC_API_URL = $ApiUrl
 $env:NODE_ENV = "production"
 Push-Location "$BuildDir\android"
 try {
-  .\gradlew.bat assembleRelease "-PreactNativeArchitectures=$Architectures" --console=plain
-  if ($LASTEXITCODE -ne 0) { throw "Gradle build failed" }
+  # Gradle writes warnings to stderr; under "Stop" PowerShell 5.1 treats those as fatal.
+  $ErrorActionPreference = "Continue"
+  & "$BuildDir\android\gradlew.bat" -p "$BuildDir\android" assembleRelease "-PreactNativeArchitectures=$Architectures" --console=plain
+  if ($LASTEXITCODE -ne 0) { throw "Gradle build failed ($LASTEXITCODE)" }
 } finally {
+  $ErrorActionPreference = "Stop"
   Pop-Location
 }
 
 $out = "$src\MedPet-release.apk"
 Copy-Item "$BuildDir\android\app\build\outputs\apk\release\app-release.apk" $out -Force
+
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$zip = [IO.Compression.ZipFile]::OpenRead($out)
+try {
+  $reader = New-Object IO.StreamReader(($zip.Entries | Where-Object FullName -eq 'assets/index.android.bundle').Open())
+  $bundle = $reader.ReadToEnd(); $reader.Close()
+} finally { $zip.Dispose() }
+if (-not $bundle.Contains($ApiUrl.TrimEnd('/'))) { throw "APK bundle does not contain $ApiUrl - stale bundle, rebuild." }
 Write-Host "APK ready: $out ($([math]::Round((Get-Item $out).Length / 1MB, 1)) MB) -> API $ApiUrl"

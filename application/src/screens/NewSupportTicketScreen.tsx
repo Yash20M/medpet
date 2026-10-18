@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  StatusBar, TextInput, ActivityIndicator, Alert, Platform,
+  View, StyleSheet, ScrollView, TouchableOpacity,
+  StatusBar, ActivityIndicator, Alert, Platform,
 } from 'react-native';
+import { Text, TextInput } from '../components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '../components/Icon';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { supportAPI } from '../services/api';
 import { COLORS, GRADIENTS, RADII, SHADOWS } from '../theme/colors';
@@ -91,7 +92,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.background },
   header: { paddingHorizontal: 20, paddingBottom: 18, borderBottomLeftRadius: RADII.xl, borderBottomRightRadius: RADII.xl },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  iconBtn: { width: 32, padding: 4 },
+  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 18, fontWeight: '800', color: COLORS.white },
   headerSub: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 6, marginLeft: 4 },
   scrollContent: { padding: 20, paddingBottom: 40 },

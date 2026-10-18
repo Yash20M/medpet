@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar,
-  TextInput, Alert, ActivityIndicator, Platform,
+  View, StyleSheet, ScrollView, TouchableOpacity,
+  StatusBar, Alert, ActivityIndicator, Platform,
 } from 'react-native';
+import { Text, TextInput } from '../components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '../components/Icon';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { usePets } from '../context/PetsContext';
 import { COLORS, GRADIENTS, RADII, SHADOWS } from '../theme/colors';
@@ -135,7 +136,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.background },
   header: { paddingHorizontal: 20, paddingBottom: 20, borderBottomLeftRadius: RADII.xl, borderBottomRightRadius: RADII.xl },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  iconBtn: { width: 32, padding: 4 },
+  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 18, fontWeight: '800', color: COLORS.white },
   headerSub: { fontSize: 13, color: 'rgba(255,255,255,0.9)', marginTop: 8, marginLeft: 4 },
   scroll: { padding: 20, paddingBottom: 40 },
@@ -156,10 +157,10 @@ const styles = StyleSheet.create({
   },
   row: { flexDirection: 'row', gap: 12 },
   rowItem: { flex: 1 },
-  genderRow: { flexDirection: 'row', gap: 10 },
+  genderRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   genderChip: {
-    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    paddingVertical: 12, borderRadius: RADII.md, borderWidth: 1.5, borderColor: COLORS.grayBorder, backgroundColor: COLORS.white,
+    flexGrow: 1, flexBasis: 0, minWidth: 96, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    paddingVertical: 12, paddingHorizontal: 8, borderRadius: RADII.md, borderWidth: 1.5, borderColor: COLORS.grayBorder, backgroundColor: COLORS.white,
   },
   genderChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
   genderLabel: { fontSize: 13, fontWeight: '700', color: COLORS.gray },

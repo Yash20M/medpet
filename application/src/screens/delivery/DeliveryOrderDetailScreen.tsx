@@ -1,21 +1,19 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  StatusBar, ActivityIndicator, Alert, Linking, Platform,
+  View, StyleSheet, ScrollView, TouchableOpacity,
+  StatusBar, ActivityIndicator, Alert, Linking,
 } from 'react-native';
+import { Text } from '../../components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '../../components/Icon';
 import { RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { deliveryAPI, trackingAPI, ApiDeliveryOrder, ApiError } from '../../services/api';
+import { deliveryAPI, ApiDeliveryOrder, ApiError } from '../../services/api';
 import { COLORS, GRADIENTS } from '../../theme/colors';
 import { DeliveryStackParamList } from '../../types/navigation.types';
-import { useTracking } from '../../hooks/useTracking';
-import { useDriverLocation } from '../../hooks/useDriverLocation';
-import VectorMap from '../../components/tracking/VectorMap';
 import DeliveryOtpModal from '../../components/delivery/DeliveryOtpModal';
-import { startBackgroundTracking, stopBackgroundTracking, isBackgroundTracking } from '../../services/backgroundLocation';
+import { googleMapsUrl } from '../../utils/maps';
 
 type Props = {
   navigation: NativeStackNavigationProp<DeliveryStackParamList, 'DeliveryOrderDetail'>;
@@ -37,17 +35,6 @@ const DeliveryOrderDetailScreen = ({ navigation, route }: Props) => {
   const [order, setOrder] = useState<ApiDeliveryOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const [acting, setActing] = useState(false);
-
-  const isShipped = order?.status === 'shipped';
-  // Live route + server-snapped position for this order (also used by the customer).
-  const { state: tracking, live } = useTracking(orderId);
-  // Foreground GPS sender — only broadcasts while this is an active delivery.
-  const { permission, position } = useDriverLocation(orderId, !!isShipped);
-
-  const driverPos = live ? { lat: live.lat, lng: live.lng } : position ?? tracking?.driver.location ?? null;
-  const progress = live?.progress ?? tracking?.tracking.progress ?? 0;
-  const eta = live?.eta ?? tracking?.tracking.etaMinutes ?? null;
-  const distanceRemaining = live?.distanceRemaining ?? tracking?.tracking.distanceRemainingKm ?? null;
 
   const load = useCallback(async () => {
     try {
@@ -93,8 +80,6 @@ const DeliveryOrderDetailScreen = ({ navigation, route }: Props) => {
     try {
       await deliveryAPI.deliver(order.id, otp);
       setOtpModalVisible(false);
-      await stopBackgroundTracking().catch(() => {});
-      setBgOn(false);
       await load();
     } catch (err) {
       setOtpError((err as ApiError).message);
@@ -103,47 +88,15 @@ const DeliveryOrderDetailScreen = ({ navigation, route }: Props) => {
     }
   };
 
-  const [bgOn, setBgOn] = useState(false);
-  useEffect(() => { isBackgroundTracking().then(setBgOn); }, []);
-
-  const markPicked = async () => {
-    if (!order) return;
-    try {
-      await trackingAPI.setPhase(order.id, 'picked');
-      Alert.alert('Marked as picked up', 'The customer can see you’re on the way.');
-    } catch (err) {
-      Alert.alert('Could not update', (err as ApiError).message);
-    }
-  };
-
-  const toggleBackground = async () => {
-    try {
-      if (bgOn) {
-        await stopBackgroundTracking();
-        setBgOn(false);
-      } else {
-        await startBackgroundTracking(orderId);
-        setBgOn(true);
-        Alert.alert('Background sharing on', 'Your live location is shared even when the app is in the background.');
-      }
-    } catch (e) {
-      Alert.alert('Background location unavailable', `${(e as Error).message}\n\nNote: background tracking needs a development build (it doesn’t run in Expo Go). Foreground sharing still works.`);
-    }
-  };
-
   const callCustomer = () => {
     const phone = order?.contact_phone?.trim();
     if (phone) Linking.openURL(`tel:${phone}`);
   };
 
+  const mapsUrl = order ? googleMapsUrl({ latitude: order.latitude, longitude: order.longitude, address: order.address }) : null;
   const openMap = () => {
-    if (order?.latitude == null || order?.longitude == null) return;
-    const { latitude, longitude } = order;
-    const url = Platform.select({
-      ios: `http://maps.apple.com/?q=${latitude},${longitude}`,
-      default: `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`,
-    })!;
-    Linking.openURL(url);
+    if (!mapsUrl) return;
+    Linking.openURL(mapsUrl).catch(() => Alert.alert('Could not open Google Maps', 'Please install Google Maps or open the link in a browser.'));
   };
 
   return (
@@ -172,57 +125,6 @@ const DeliveryOrderDetailScreen = ({ navigation, route }: Props) => {
           <ScrollView contentContainerStyle={[styles.scroll, { paddingBottom: 120 }]} showsVerticalScrollIndicator={false}>
             <StatusBanner status={order.status} />
 
-            {isShipped && (
-              <View style={styles.liveCard}>
-                <View style={styles.liveHead}>
-                  <View style={styles.liveDotRow}>
-                    <View style={styles.liveDot} />
-                    <Text style={styles.liveLabel}>You’re live</Text>
-                  </View>
-                  <Text style={styles.liveMeta}>
-                    {distanceRemaining != null ? `${distanceRemaining.toFixed(1)} km left` : 'Locating…'}
-                    {eta != null ? ` · ${eta} min` : ''}
-                  </Text>
-                </View>
-
-                <View style={styles.mapClip}>
-                  <VectorMap
-                    pickup={tracking?.pickup ?? null}
-                    drop={tracking?.drop ?? null}
-                    polyline={tracking?.route?.polyline ?? []}
-                    driver={driverPos}
-                    progress={progress}
-                    heading={live?.heading ?? position?.heading ?? 0}
-                    height={200}
-                  />
-                </View>
-
-                {permission === 'denied' && (
-                  <Text style={styles.locWarn}>⚠️ Enable location access to share your live position with the customer.</Text>
-                )}
-
-                <View style={styles.liveActions}>
-                  <TouchableOpacity style={styles.liveBtn} onPress={markPicked}>
-                    <Ionicons name="bag-check-outline" size={17} color={COLORS.primaryDark} />
-                    <Text style={styles.liveBtnText}>Picked up</Text>
-                  </TouchableOpacity>
-                  {order.latitude != null && order.longitude != null && (
-                    <TouchableOpacity style={styles.liveBtn} onPress={openMap}>
-                      <Ionicons name="navigate" size={17} color={COLORS.primaryDark} />
-                      <Text style={styles.liveBtnText}>Navigate</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
-
-                <TouchableOpacity style={[styles.bgToggle, bgOn && styles.bgToggleOn]} onPress={toggleBackground}>
-                  <Ionicons name={bgOn ? 'radio' : 'radio-outline'} size={16} color={bgOn ? COLORS.white : COLORS.gray} />
-                  <Text style={[styles.bgToggleText, bgOn && styles.bgToggleTextOn]}>
-                    {bgOn ? 'Sharing in background · tap to stop' : 'Share location in background'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Customer</Text>
               <Text style={styles.bigName}>{order.user_name}</Text>
@@ -234,18 +136,23 @@ const DeliveryOrderDetailScreen = ({ navigation, route }: Props) => {
                   <Ionicons name="call" size={16} color={COLORS.primary} />
                   <Text style={styles.contactText}>{order.contact_phone || 'No phone'}</Text>
                 </TouchableOpacity>
-                {order.latitude != null && order.longitude != null && (
-                  <TouchableOpacity style={styles.contactBtn} onPress={openMap}>
-                    <Ionicons name="navigate" size={16} color={COLORS.primary} />
-                    <Text style={styles.contactText}>Map</Text>
-                  </TouchableOpacity>
-                )}
               </View>
             </View>
 
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Delivery address</Text>
               <Text style={styles.address}>{addressBody(order.address)}</Text>
+              {mapsUrl && (
+                <TouchableOpacity style={styles.navBtn} onPress={openMap} activeOpacity={0.85}>
+                  <Ionicons name="navigate" size={18} color={COLORS.white} />
+                  <Text style={styles.navBtnText}>
+                    {order.latitude != null && order.longitude != null ? 'Navigate in Google Maps' : 'Search address in Google Maps'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              {order.latitude != null && order.longitude != null && (
+                <Text style={styles.navHint}>Uses the location the customer shared when ordering.</Text>
+              )}
             </View>
 
             <View style={styles.card}>
@@ -323,27 +230,12 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.background },
   header: { paddingHorizontal: 16, paddingBottom: 16 },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  iconBtn: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
+  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 17, fontWeight: '800', color: COLORS.white },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 30 },
   scroll: { padding: 16 },
   banner: { flexDirection: 'row', alignItems: 'center', gap: 8, borderRadius: 12, padding: 12, marginBottom: 14 },
   bannerText: { fontSize: 14, fontWeight: '800' },
-  liveCard: { backgroundColor: COLORS.white, borderRadius: 16, padding: 12, marginBottom: 14, shadowColor: '#0F2A22', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 2 },
-  liveHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  liveDotRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  liveDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: COLORS.success },
-  liveLabel: { fontSize: 14, fontWeight: '800', color: COLORS.black },
-  liveMeta: { fontSize: 13, fontWeight: '700', color: COLORS.gray },
-  mapClip: { borderRadius: 12, overflow: 'hidden' },
-  locWarn: { fontSize: 12.5, color: COLORS.warning, fontWeight: '600', marginTop: 10 },
-  liveActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
-  liveBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: COLORS.primaryLight, borderRadius: 12, paddingVertical: 11 },
-  liveBtnText: { fontSize: 14, fontWeight: '800', color: COLORS.primaryDark },
-  bgToggle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 10, paddingVertical: 10, borderRadius: 12, borderWidth: 1, borderColor: COLORS.grayBorder },
-  bgToggleOn: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
-  bgToggleText: { fontSize: 12.5, fontWeight: '700', color: COLORS.gray },
-  bgToggleTextOn: { color: COLORS.white },
   card: {
     backgroundColor: COLORS.white, borderRadius: 16, padding: 16, marginBottom: 12,
     shadowColor: '#0F2A22', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 2,
@@ -356,6 +248,9 @@ const styles = StyleSheet.create({
   contactBtnDisabled: { opacity: 0.5 },
   contactText: { fontSize: 13, fontWeight: '700', color: COLORS.primaryDark },
   address: { fontSize: 15, color: COLORS.ink, lineHeight: 22 },
+  navBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#1A73E8', borderRadius: 12, paddingVertical: 12, marginTop: 12 },
+  navBtnText: { color: COLORS.white, fontSize: 14, fontWeight: '800' },
+  navHint: { fontSize: 11.5, color: COLORS.gray, marginTop: 6, textAlign: 'center' },
   itemRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10 },
   itemEmoji: { fontSize: 20 },
   itemName: { flex: 1, fontSize: 14, color: COLORS.ink },

@@ -25,5 +25,6 @@ export const addToCartFeedback = (): void => {
     p.play();
   } catch (e) {
     console.warn('[feedback] sound play failed:', e);
+    
   }
 };

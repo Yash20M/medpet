@@ -108,6 +108,12 @@ const evaluateCoupon = async (
     [productIds]
   );
   const productMap = new Map(products.map((p) => [p.id, p]));
+  const variantIds = items.map((i) => i.variantId).filter((v): v is number => v != null);
+  const { rows: variants } = variantIds.length
+    ? await executor.query<{ id: number; product_id: number; discount_price: number }>(
+        `SELECT id, product_id, discount_price FROM product_variants WHERE id = ANY($1)`, [variantIds])
+    : { rows: [] };
+  const variantMap = new Map(variants.map((v) => [v.id, v]));
 
   const hasRestrictions = coupon.category_ids.length > 0 || coupon.product_ids.length > 0;
   const qualifyingProductIds: number[] = [];
@@ -121,7 +127,9 @@ const evaluateCoupon = async (
       || (p.category_id != null && coupon.category_ids.includes(p.category_id));
     if (qualifies) {
       qualifyingProductIds.push(p.id);
-      qualifyingSubtotal += p.discount_price * Math.max(1, item.quantity);
+      const v = item.variantId != null ? variantMap.get(item.variantId) : undefined;
+      const unit = v && v.product_id === p.id ? v.discount_price : p.discount_price;
+      qualifyingSubtotal += unit * Math.max(1, item.quantity);
     }
   }
 

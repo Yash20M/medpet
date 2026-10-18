@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import DeliveryHomeScreen from '../screens/delivery/DeliveryHomeScreen';
 import DeliveryOrderDetailScreen from '../screens/delivery/DeliveryOrderDetailScreen';
+import DeliveryHistoryScreen from '../screens/delivery/DeliveryHistoryScreen';
 import { DeliveryStackParamList } from '../types/navigation.types';
 
 const Stack = createNativeStackNavigator<DeliveryStackParamList>();
@@ -20,6 +21,11 @@ const DeliveryNavigator = () => (
       <Stack.Screen
         name="DeliveryOrderDetail"
         component={DeliveryOrderDetailScreen}
+        options={{ animation: 'slide_from_right' }}
+      />
+      <Stack.Screen
+        name="DeliveryHistory"
+        component={DeliveryHistoryScreen}
         options={{ animation: 'slide_from_right' }}
       />
     </Stack.Navigator>

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Image, View, Text, StyleSheet, StyleProp, ViewStyle, ImageStyle } from 'react-native';
+import { Image, View, StyleSheet, StyleProp, ViewStyle, ImageStyle } from 'react-native';
+import { Text } from './AppText';
 
 interface Props {
   uri?: string | null;

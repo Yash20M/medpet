@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View, StyleSheet, Animated, Easing } from 'react-native';
+import { Text } from '../AppText';
+import Ionicons from '../Icon';
 import { LinearGradient } from 'expo-linear-gradient';
 import PressableScale from '../PressableScale';
 import { usePets } from '../../context/PetsContext';

@@ -12,13 +12,28 @@ export interface Category {
   is_active: boolean;
 }
 
+export interface ProductVariant {
+  id: number;
+  label: string;
+  original_price: number;
+  discount_price: number;
+  stock_quantity: number;
+  discount_percent: number;
+}
+
 export interface Product {
   id: number;
   name: string;
   brand: string;
+  brand_id: number | null;
   description: string;
   emoji: string;
   image_url: string | null;
+  /** Gallery (max 5); the first is the main image. */
+  image_urls?: string[];
+  manufacturer_details?: string;
+  ingredients?: string;
+  uses?: string;
   category_id: number | null;
   category_name: string | null;
   original_price: number;
@@ -31,8 +46,30 @@ export interface Product {
   in_stock: boolean;
   is_featured: boolean;
   is_flash_sale: boolean;
+  /** Pet accessory (collar, toy, bed…) rather than a medicine/food product. */
+  is_accessory: boolean;
+  /** Pet types an accessory suits (dog, cat…); empty = every pet. */
+  pet_types: string[];
+  /** Size options (10kg, 20kg…); empty = single-size product. */
+  variants?: ProductVariant[];
   created_at: string;
 }
+
+export const PET_TYPE_OPTIONS: { value: string; label: string; emoji: string }[] = [
+  { value: 'dog', label: 'Dogs', emoji: '🐕' },
+  { value: 'cat', label: 'Cats', emoji: '🐈' },
+  { value: 'bird', label: 'Birds', emoji: '🐦' },
+  { value: 'fish', label: 'Fish', emoji: '🐟' },
+  { value: 'rabbit', label: 'Rabbits', emoji: '🐇' },
+  { value: 'horse', label: 'Horses', emoji: '🐎' },
+  { value: 'reptile', label: 'Reptiles', emoji: '🦎' },
+  { value: 'other', label: 'Other', emoji: '🐾' },
+];
+
+export const petTypesLabel = (types: string[]): string =>
+  types.length === 0
+    ? 'All pets'
+    : types.map((t) => PET_TYPE_OPTIONS.find((o) => o.value === t)?.label ?? t).join(', ');
 
 export type OrderStatus = 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'cancelled';
 
@@ -101,6 +138,32 @@ export interface DeliveryPartner {
   invite_pending: boolean;
   active_deliveries: number;
   completed_deliveries: number;
+}
+
+export interface DeliveryHistoryOrder {
+  id: number;
+  status: string;
+  total: number;
+  payment_method: string;
+  address: string;
+  accepted_at: string;
+  delivered_at: string | null;
+  customer_name: string;
+  partner_id: number;
+  partner_name: string;
+  item_count: number;
+}
+
+export interface DeliveryHistory {
+  range: { from: string; to: string };
+  summary: {
+    accepted: number; delivered: number; active: number;
+    total_value: number; delivered_value: number; cod_collected: number;
+  };
+  daily: { date: string; accepted: number; delivered: number; value: number }[];
+  by_partner: { partner_id: number; partner_name: string; accepted: number; delivered: number; value: number }[];
+  orders: DeliveryHistoryOrder[];
+  pagination: { page: number; limit: number; total: number; total_pages: number };
 }
 
 export interface CreateDeliveryPartnerResult {
@@ -227,8 +290,13 @@ export interface Brand {
   name: string;
   emoji: string;
   tint: string;
+  image_url: string | null;
   sort_order: number;
   is_active: boolean;
+  /** Active products using this brand. */
+  product_count: number;
+  /** All products (incl. inactive). */
+  total_products?: number;
   created_at: string;
 }
 

@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, StatusBar,
-  TextInput, Alert,
+  View, StyleSheet, ScrollView, TouchableOpacity,
+  StatusBar, Alert,
 } from 'react-native';
+import { Text, TextInput } from '../components/AppText';
+import FadeInView from '../components/FadeInView';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '../components/Icon';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useCart } from '../context/CartContext';
 import { useRequireAuth } from '../hooks/useRequireAuth';
-import { formatPrice } from '../types/product.types';
+import { formatPrice, cartLineKey } from '../types/product.types';
 import { COLORS, GRADIENTS } from '../theme/colors';
 import { RootStackParamList } from '../types/navigation.types';
 import MediaThumb from '../components/MediaThumb';
@@ -64,29 +66,32 @@ const CartScreen = ({ navigation }: Props) => {
       ) : (
         <>
           <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
-            {items.map(({ product, quantity }) => (
-              <View key={product.id} style={styles.itemCard}>
+            {items.map(({ product, quantity, variant }, idx) => (
+              <FadeInView key={cartLineKey(product.id, variant?.id)} delay={idx * 70} distance={18}>
+                <View style={styles.itemCard}>
                 <MediaThumb uri={product.imageUrl} emoji={product.emoji} emojiSize={36} style={styles.itemImg} rounded={12} />
                 <View style={styles.itemInfo}>
                   <Text style={styles.itemBrand}>{product.brand}</Text>
                   <Text style={styles.itemName} numberOfLines={2}>{product.name}</Text>
+                  {!!variant && <Text style={styles.itemSize}>{variant.label}</Text>}
+                  <View style={styles.priceQtyRow}>
                   <Text style={styles.itemPrice}>{formatPrice(product.price)}</Text>
-                </View>
-                <View style={styles.itemActions}>
-                  <TouchableOpacity onPress={() => removeItem(product.id)} hitSlop={8}>
-                    <Ionicons name="trash-outline" size={18} color={COLORS.gray} />
-                  </TouchableOpacity>
                   <View style={styles.qtyRow}>
-                    <TouchableOpacity style={styles.qtyBtn} onPress={() => updateQty(product.id, -1)}>
+                    <TouchableOpacity style={styles.qtyBtn} onPress={() => updateQty(product.id, -1, variant?.id)}>
                       <Ionicons name="remove" size={16} color={COLORS.primary} />
                     </TouchableOpacity>
                     <Text style={styles.qtyValue}>{quantity}</Text>
-                    <TouchableOpacity style={styles.qtyBtn} onPress={() => updateQty(product.id, 1)}>
+                    <TouchableOpacity style={styles.qtyBtn} onPress={() => updateQty(product.id, 1, variant?.id)}>
                       <Ionicons name="add" size={16} color={COLORS.primary} />
                     </TouchableOpacity>
                   </View>
+                  </View>
                 </View>
+                <TouchableOpacity style={styles.trashBtn} onPress={() => removeItem(product.id, variant?.id)} hitSlop={8} accessibilityLabel="Remove item">
+                  <Ionicons name="trash-outline" size={18} color={COLORS.gray} />
+                </TouchableOpacity>
               </View>
+              </FadeInView>
             ))}
 
             {/* Free-delivery progress */}
@@ -160,13 +165,13 @@ const CartScreen = ({ navigation }: Props) => {
           </ScrollView>
 
           <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
-            <View>
+            <View style={styles.footerTotalWrap}>
               <Text style={styles.footerLabel}>Total</Text>
-              <Text style={styles.footerTotal}>{formatPrice(total)}</Text>
+              <Text style={styles.footerTotal} numberOfLines={1} adjustsFontSizeToFit>{formatPrice(total)}</Text>
             </View>
             <TouchableOpacity style={styles.cta} activeOpacity={0.9} onPress={handleCheckout}>
               <LinearGradient colors={GRADIENTS.primary} style={styles.ctaGrad} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}>
-                <Text style={styles.ctaText}>Proceed to Checkout</Text>
+                <Text style={styles.ctaText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>Proceed to Checkout</Text>
                 <Ionicons name="arrow-forward" size={18} color={COLORS.white} />
               </LinearGradient>
             </TouchableOpacity>
@@ -181,7 +186,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.background },
   header: { paddingTop: 12, paddingHorizontal: 20, paddingBottom: 18 },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  iconBtn: { width: 32, padding: 4 },
+  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 18, fontWeight: '800', color: COLORS.white },
   headerSub: { fontSize: 13, color: 'rgba(255,255,255,0.8)', marginTop: 6, marginLeft: 4 },
   scroll: { flex: 1 },
@@ -192,11 +197,13 @@ const styles = StyleSheet.create({
   },
   itemImg: { width: 72, height: 72, borderRadius: 12, backgroundColor: COLORS.grayLight, alignItems: 'center', justifyContent: 'center' },
   itemEmoji: { fontSize: 36 },
-  itemInfo: { flex: 1, paddingHorizontal: 12, justifyContent: 'center' },
+  itemInfo: { flex: 1, minWidth: 0, paddingLeft: 12, paddingRight: 24, justifyContent: 'center' },
+  priceQtyRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  trashBtn: { position: 'absolute', top: 10, right: 10 },
   itemBrand: { fontSize: 10, color: COLORS.gray, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  itemSize: { fontSize: 12, fontWeight: '700', color: COLORS.primaryDark, marginTop: 2 },
   itemName: { fontSize: 14, fontWeight: '700', color: COLORS.black, marginVertical: 2 },
   itemPrice: { fontSize: 15, fontWeight: '800', color: COLORS.primary },
-  itemActions: { alignItems: 'flex-end', justifyContent: 'space-between', paddingVertical: 2 },
   qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   qtyBtn: {
     width: 28, height: 28, borderRadius: 8, backgroundColor: COLORS.primaryLight,
@@ -252,8 +259,9 @@ const styles = StyleSheet.create({
   },
   footerLabel: { fontSize: 12, color: COLORS.gray, fontWeight: '600' },
   footerTotal: { fontSize: 22, fontWeight: '800', color: COLORS.black },
-  cta: { borderRadius: 16, overflow: 'hidden' },
-  ctaGrad: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 24, paddingVertical: 16 },
+  footerTotalWrap: { flexShrink: 0, marginRight: 14 },
+  cta: { flex: 1, borderRadius: 16, overflow: 'hidden' },
+  ctaGrad: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 16 },
   ctaText: { color: COLORS.white, fontSize: 16, fontWeight: '700' },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 },
   emptyEmoji: { fontSize: 64, marginBottom: 16 },

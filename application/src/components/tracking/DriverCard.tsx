@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View, StyleSheet } from 'react-native';
+import { Text } from '../AppText';
+import Ionicons from '../Icon';
 import PressableScale from '../PressableScale';
 import { COLORS } from '../../theme/colors';
 

@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, StatusBar, Alert, ActivityIndicator, Switch,
+  View, StyleSheet, ScrollView, TouchableOpacity,
+  StatusBar, Alert, ActivityIndicator, Switch,
 } from 'react-native';
+import { Text, TextInput } from '../components/AppText';
+import FadeInView from '../components/FadeInView';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '../components/Icon';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAuth } from '../context/AuthContext';
 import { useWishlist } from '../context/WishlistContext';
@@ -153,7 +155,8 @@ const ProfileScreen = ({ navigation }: Props) => {
 
         <View style={styles.card}>
           {menu.map((m, i) => (
-            <TouchableOpacity
+            <FadeInView key={m.label} delay={120 + i * 55} distance={12}>
+              <TouchableOpacity
               key={m.label}
               style={[styles.menuItem, i < menu.length - 1 && styles.menuItemBorder]}
               onPress={m.onPress}
@@ -168,13 +171,15 @@ const ProfileScreen = ({ navigation }: Props) => {
               </View>
               <Ionicons name="chevron-forward" size={18} color={COLORS.gray} />
             </TouchableOpacity>
+            </FadeInView>
           ))}
         </View>
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Account & Payments</Text>
           {accountMenu.map((m, i) => (
-            <TouchableOpacity
+            <FadeInView key={m.label} delay={320 + i * 55} distance={12}>
+              <TouchableOpacity
               key={m.label}
               style={[styles.menuItem, i < accountMenu.length - 1 && styles.menuItemBorder]}
               onPress={m.onPress}
@@ -189,6 +194,7 @@ const ProfileScreen = ({ navigation }: Props) => {
               </View>
               <Ionicons name="chevron-forward" size={18} color={COLORS.gray} />
             </TouchableOpacity>
+            </FadeInView>
           ))}
         </View>
 
@@ -226,7 +232,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.background },
   header: { paddingHorizontal: 20, paddingBottom: 28 },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
-  iconBtn: { width: 32, padding: 4 },
+  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 18, fontWeight: '800', color: COLORS.white },
   avatarWrap: { alignItems: 'center' },
   avatar: {

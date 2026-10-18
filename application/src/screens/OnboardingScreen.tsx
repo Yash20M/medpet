@@ -1,11 +1,12 @@
 import React, { useRef, useState, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, Animated, Dimensions, Easing,
-  NativeScrollEvent, NativeSyntheticEvent, StatusBar,
+  View, StyleSheet, Animated, Dimensions,
+  Easing, NativeScrollEvent, NativeSyntheticEvent, StatusBar,
 } from 'react-native';
+import { Text } from '../components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '../components/Icon';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { COLORS, GRADIENTS, RADII, SHADOWS } from '../theme/colors';
 import { RootStackParamList } from '../types/navigation.types';

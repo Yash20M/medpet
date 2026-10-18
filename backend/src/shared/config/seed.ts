@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { PoolClient } from 'pg';
 import db from './database';
+import { SQL_BRAND_BACKFILL } from './migrate';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -40,6 +41,21 @@ const PRODUCTS = [
   { name: 'Catnip Treats', brand: 'FreshPaws', cat: 'cats', emoji: '🌿', image: IMG('photo-1592194996308-7b43878e84a6'), original: 169, price: 129, rating: 4.7, reviews: 960, stock: 100, featured: false, desc: 'Crunchy treats infused with premium catnip for playful enrichment.' },
 ];
 
+// Accessories: `pets` = pet types it suits (empty = every pet). Emoji only — admins add photos.
+const ACCESSORIES = [
+  { name: 'Adjustable Dog Collar', brand: 'PawPal', cat: 'dogs', emoji: '🦮', pets: ['dog'], original: 499, price: 349, rating: 4.6, reviews: 820, stock: 60, featured: false, desc: 'Soft padded nylon collar with a quick-release buckle and reflective stitching for night walks.' },
+  { name: 'Retractable Dog Leash', brand: 'PawPal', cat: 'dogs', emoji: '🦴', pets: ['dog'], original: 799, price: 599, rating: 4.5, reviews: 540, stock: 45, featured: false, desc: '5-metre retractable leash with a one-hand lock and an anti-slip grip handle.' },
+  { name: 'Rope Chew Toy', brand: 'PawPal', cat: 'dogs', emoji: '🪢', pets: ['dog'], original: 249, price: 179, rating: 4.4, reviews: 410, stock: 90, featured: false, desc: 'Knotted cotton rope that cleans teeth and keeps strong chewers busy.' },
+  { name: 'Cat Scratching Post', brand: 'FreshPaws', cat: 'cats', emoji: '🐈', pets: ['cat'], original: 1299, price: 999, rating: 4.7, reviews: 690, stock: 30, featured: false, desc: 'Sturdy sisal-wrapped post with a cosy perch on top. Saves your sofa.' },
+  { name: 'Feather Teaser Wand', brand: 'FreshPaws', cat: 'cats', emoji: '🪶', pets: ['cat'], original: 229, price: 149, rating: 4.8, reviews: 1100, stock: 120, featured: false, desc: 'Flexible wand with soft feathers and a bell for endless chase-and-pounce play.' },
+  { name: 'Cosy Pet Bed', brand: 'PawPal', cat: 'cats', emoji: '🛏️', pets: ['dog', 'cat'], original: 1499, price: 1099, rating: 4.7, reviews: 760, stock: 25, featured: false, desc: 'Machine-washable plush bed with raised edges for small dogs and cats.' },
+  { name: 'Bird Cage Swing', brand: 'AviCare', cat: 'birds', emoji: '🪺', pets: ['bird'], original: 199, price: 139, rating: 4.5, reviews: 230, stock: 70, featured: false, desc: 'Natural wood swing with a bell — easy to hang in any cage.' },
+  { name: 'Aquarium LED Light', brand: 'AquaSafe', cat: 'fish', emoji: '💡', pets: ['fish'], original: 899, price: 649, rating: 4.6, reviews: 340, stock: 40, featured: false, desc: 'Energy-saving full-spectrum LED hood light that brings out colours and supports plant growth.' },
+  { name: 'Rabbit Hay Feeder', brand: 'NutriPet', cat: 'rabbit', emoji: '🥕', pets: ['rabbit'], original: 399, price: 299, rating: 4.4, reviews: 150, stock: 50, featured: false, desc: 'Wall-mount rack that keeps hay clean and off the floor.' },
+  { name: 'Reptile Heat Lamp', brand: 'ReptiCare', cat: 'reptile', emoji: '🔥', pets: ['reptile'], original: 1199, price: 899, rating: 4.5, reviews: 120, stock: 35, featured: false, desc: 'Ceramic basking lamp with a protective guard for stable terrarium warmth.' },
+  { name: 'Travel Water Bottle', brand: 'PawPal', cat: '', emoji: '💧', pets: [], original: 449, price: 329, rating: 4.6, reviews: 980, stock: 80, featured: false, desc: 'Leak-proof bottle with a fold-out bowl — great for walks and trips with any pet.' },
+];
+
 const OFFERS = [
   { title: 'Flat 30% Off', subtitle: 'On all pet medicines\nThis weekend only!', badge: 'SALE', code: 'MED30', emoji: '💊', color_from: '#E63946', color_to: '#A4121A', sort_order: 1 },
   { title: 'Premium Dog Food', subtitle: 'Nutrition crafted by\nvet specialists', badge: 'NEW', code: '', emoji: '🐕', color_from: '#FF6B35', color_to: '#C1440E', sort_order: 2 },
@@ -47,6 +63,42 @@ const OFFERS = [
 ];
 
 const SEEDED_MARKER = 'catalog_seeded_at';
+
+async function insertAccessories(client: PoolClient, slugToId: Map<string, number>): Promise<void> {
+  for (const a of ACCESSORIES) {
+    await client.query(
+      `INSERT INTO products
+         (name, brand, description, emoji, category_id, original_price, discount_price,
+          rating, reviews_count, stock_quantity, in_stock, is_featured, is_accessory, pet_types)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,true,$11,true,$12::text[])`,
+      [a.name, a.brand, a.desc, a.emoji, slugToId.get(a.cat) ?? null,
+       a.original, a.price, a.rating, a.reviews, a.stock, a.featured, a.pets]
+    );
+  }
+}
+
+/**
+ * `npm run seed:accessories` — adds the demo accessories to an EXISTING catalog.
+ * Idempotent: does nothing if any accessory already exists, and never touches other data.
+ */
+export async function seedAccessoriesIfNone(): Promise<number> {
+  const client = await db.getClient();
+  try {
+    await client.query('BEGIN');
+    const have = await client.query<{ n: number }>(`SELECT COUNT(*)::int AS n FROM products WHERE is_accessory = true`);
+    if (have.rows[0].n > 0) { await client.query('COMMIT'); return 0; }
+    const cats = await client.query<{ id: number; slug: string }>('SELECT id, slug FROM categories');
+    await insertAccessories(client, new Map(cats.rows.map((c) => [c.slug, c.id])));
+    await client.query(SQL_BRAND_BACKFILL);
+    await client.query('COMMIT');
+    return ACCESSORIES.length;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
 
 async function insertCatalog(client: PoolClient): Promise<void> {
   const slugToId = new Map<string, number>();
@@ -69,6 +121,11 @@ async function insertCatalog(client: PoolClient): Promise<void> {
        p.original, p.price, p.rating, p.reviews, p.stock, p.instock !== false, p.featured]
     );
   }
+
+  await insertAccessories(client, slugToId);
+
+  // Create a brand for every product brand name and link the products to them.
+  await client.query(SQL_BRAND_BACKFILL);
 
   for (const o of OFFERS) {
     await client.query(
@@ -108,7 +165,7 @@ export async function seedCatalogIfEmpty(): Promise<void> {
     );
     if (rows[0].n === 0) {
       await insertCatalog(client);
-      console.log(`🌱 Fresh database — seeded ${CATEGORIES.length} categories, ${PRODUCTS.length} products, ${OFFERS.length} offers.`);
+      console.log(`🌱 Fresh database — seeded ${CATEGORIES.length} categories, ${PRODUCTS.length} products, ${ACCESSORIES.length} accessories, ${OFFERS.length} offers.`);
     } else {
       console.log('🌱 Catalog already has data — skipping demo seed.');
     }

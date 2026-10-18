@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
-import { Modal, View, Text, StyleSheet, Animated, Easing } from 'react-native';
+import { Modal, View, StyleSheet, Animated, Easing } from 'react-native';
+import { Text } from './AppText';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, GRADIENTS, RADII, SHADOWS } from '../theme/colors';
 import PressableScale from './PressableScale';

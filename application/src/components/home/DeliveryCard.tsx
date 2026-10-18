@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View, StyleSheet, Animated, Easing } from 'react-native';
+import { Text } from '../AppText';
+import Ionicons from '../Icon';
 import { LinearGradient } from 'expo-linear-gradient';
 import PressableScale from '../PressableScale';
 import { LivePhase } from '../../services/api';
@@ -14,7 +15,7 @@ interface Props {
   onPress: () => void;
 }
 
-const STEPS = ['Preparing', 'Packed', 'Out for delivery'] as const;
+const STEPS = ['Preparing', 'Packed', 'On the way'] as const;
 
 /** Maps the 5-stage live phase onto this card's simplified 3-step strip. */
 const stepForPhase = (phase: LivePhase | null): number => {
@@ -103,7 +104,7 @@ const DeliveryCard = ({ orderId, phase, etaMins, onPress }: Props) => {
 
       <View style={styles.bottomRow}>
         <Ionicons name="navigate" size={14} color={COLORS.primary} />
-        <Text style={styles.availText} numberOfLines={1}>Tap to track live</Text>
+        <Text style={styles.availText} numberOfLines={1}>Tap to view ETA</Text>
       </View>
     </PressableScale>
   );

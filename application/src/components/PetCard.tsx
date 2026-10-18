@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { Text } from './AppText';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from './Icon';
 import { COLORS, GRADIENTS, RADII, SHADOWS } from '../theme/colors';
 import { Pet, PET_EMOJI, PET_TYPE_LABEL, formatPetAge } from '../types/pet.types';
 

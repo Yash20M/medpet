@@ -1,12 +1,13 @@
 import React, { useRef, useState, useEffect } from 'react';
 import {
-  View, Text, StyleSheet, Animated, TouchableOpacity, Dimensions, FlatList,
+  View, StyleSheet, Animated, TouchableOpacity,
+  useWindowDimensions, FlatList, Easing,
 } from 'react-native';
+import { Text } from './AppText';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS } from '../theme/colors';
 
-const { width } = Dimensions.get('window');
-const BANNER_W = width - 40;
+const GUTTER = 20;
 
 export interface BannerData {
   id: string;
@@ -25,7 +26,27 @@ const DEFAULT_BANNERS: BannerData[] = [
   { id: '4', title: 'Free Consultation',  subtitle: 'Talk to a vet online\n24/7 support available',  emoji: '👨‍⚕️', badge: 'FREE', colors: ['#F59E0B', '#B45309'], accent: '#FDE68A' },
 ];
 
+/** Emoji that floats gently so the hero feels alive. */
+const FloatingEmoji = ({ emoji }: { emoji: string }) => {
+  const v = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(v, { toValue: 1, duration: 1600, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(v, { toValue: 0, duration: 1600, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [v]);
+  const translateY = v.interpolate({ inputRange: [0, 1], outputRange: [4, -6] });
+  const rotate = v.interpolate({ inputRange: [0, 1], outputRange: ['-4deg', '4deg'] });
+  return <Animated.Text style={[styles.emoji, { transform: [{ translateY }, { rotate }] }]}>{emoji}</Animated.Text>;
+};
+
 const BannerCarousel = ({ banners }: { banners?: BannerData[] }) => {
+  const { width } = useWindowDimensions();
+  const BANNER_W = width - GUTTER * 2;
   const data: BannerData[] = banners && banners.length > 0 ? banners : DEFAULT_BANNERS;
   const flatListRef = useRef<FlatList<BannerData>>(null);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -58,7 +79,7 @@ const BannerCarousel = ({ banners }: { banners?: BannerData[] }) => {
         }}
         renderItem={({ item }) => (
           <TouchableOpacity activeOpacity={0.92}>
-            <LinearGradient colors={item.colors} style={styles.banner} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+            <LinearGradient colors={item.colors} style={[styles.banner, { width: BANNER_W }]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
               <View style={[styles.bgCircle, { top: -30, right: -30 }]} />
               <View style={[styles.bgCircle, { bottom: -20, left: 60, width: 80, height: 80, borderRadius: 40 }]} />
               <View style={styles.content}>
@@ -72,7 +93,7 @@ const BannerCarousel = ({ banners }: { banners?: BannerData[] }) => {
                     <Text style={styles.shopBtnText}>Shop Now →</Text>
                   </TouchableOpacity>
                 </View>
-                <Text style={styles.emoji}>{item.emoji}</Text>
+                <FloatingEmoji emoji={item.emoji} />
               </View>
             </LinearGradient>
           </TouchableOpacity>
@@ -100,7 +121,7 @@ const BannerCarousel = ({ banners }: { banners?: BannerData[] }) => {
 
 const styles = StyleSheet.create({
   banner: {
-    width: BANNER_W, height: 170, borderRadius: 20,
+    height: 170, borderRadius: 20,
     overflow: 'hidden', marginRight: 12,
   },
   content: {

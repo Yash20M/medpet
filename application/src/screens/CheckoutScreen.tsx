@@ -1,17 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  StatusBar, Alert, ActivityIndicator, TextInput, Platform, Animated,
+  View, StyleSheet, ScrollView, TouchableOpacity,
+  StatusBar, Alert, ActivityIndicator, Platform,
+  Animated,
 } from 'react-native';
+import { Text, TextInput } from '../components/AppText';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '../components/Icon';
 import * as Location from 'expo-location';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { orderAPI, PaymentMethod } from '../services/api';
-import { formatPrice } from '../types/product.types';
+import { formatPrice, cartLineKey } from '../types/product.types';
 import { COLORS, GRADIENTS } from '../theme/colors';
 import { RootStackParamList } from '../types/navigation.types';
 import { DELIVERY_SLOTS } from '../data/premium';
@@ -160,7 +162,7 @@ const CheckoutScreen = ({ navigation }: Props) => {
     try {
       const fullAddress = `${fullName.trim()}\n${address.trim()}`;
       const res = await orderAPI.create(
-        items.map((i) => ({ productId: Number(i.product.id), quantity: i.quantity })),
+        items.map((i) => ({ productId: Number(i.product.id), variantId: i.variant ? Number(i.variant.id) : undefined, quantity: i.quantity })),
         {
           address: fullAddress,
           contactPhone: phone.trim(),
@@ -362,11 +364,11 @@ const CheckoutScreen = ({ navigation }: Props) => {
           <>
             <View style={styles.card}>
               <Text style={styles.cardTitle}>Your Items</Text>
-              {items.map(({ product, quantity }) => (
-                <View key={product.id} style={styles.reviewItem}>
+              {items.map(({ product, quantity, variant }) => (
+                <View key={cartLineKey(product.id, variant?.id)} style={styles.reviewItem}>
                   <MediaThumb uri={product.imageUrl} emoji={product.emoji} emojiSize={22} style={styles.reviewImg} rounded={10} />
                   <View style={{ flex: 1, marginLeft: 10 }}>
-                    <Text style={styles.reviewName} numberOfLines={1}>{product.name}</Text>
+                    <Text style={styles.reviewName} numberOfLines={1}>{product.name}{variant ? ` (${variant.label})` : ''}</Text>
                     <Text style={styles.reviewQty}>Qty {quantity}</Text>
                   </View>
                   <Text style={styles.reviewPrice}>{formatPrice(product.price * quantity)}</Text>
@@ -480,7 +482,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: COLORS.background },
   header: { paddingHorizontal: 20, paddingBottom: 18 },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  iconBtn: { width: 32, padding: 4 },
+  iconBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: 18, fontWeight: '800', color: COLORS.white },
   stepper: { marginTop: 14 },
   stepperTrack: {

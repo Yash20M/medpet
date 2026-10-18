@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { View, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { Text } from '../AppText';
+import Ionicons from '../Icon';
 import PressableScale from '../PressableScale';
 import MediaThumb from '../MediaThumb';
 import SectionHeader from '../SectionHeader';

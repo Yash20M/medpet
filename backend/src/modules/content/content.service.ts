@@ -8,7 +8,12 @@ import {
 } from './content.types';
 
 const TIP_COLS = 'id, title, teaser, icon, color_from, color_to, read_mins, sections, sort_order, is_active, created_at';
-const BRAND_COLS = 'id, name, emoji, tint, sort_order, is_active, created_at';
+const BRAND_COLS = `
+  b.id, b.name, b.emoji, b.tint, b.image_url, b.sort_order, b.is_active, b.created_at,
+  (SELECT COUNT(*)::int FROM products p WHERE p.brand_id = b.id AND p.is_active = true) AS product_count,
+  (SELECT COUNT(*)::int FROM products p WHERE p.brand_id = b.id) AS total_products`;
+
+const httpError = (message: string, statusCode: number) => Object.assign(new Error(message), { statusCode });
 const TESTIMONIAL_COLS = 'id, owner_name, pet_name, pet_emoji, rating, body, sort_order, is_active, created_at';
 const STORE_COLS = 'id, name, area, distance_km, eta_mins, is_open, sort_order, is_active, created_at';
 
@@ -19,7 +24,7 @@ export const ContentService = {
   async home(): Promise<HomeContent> {
     const [tips, brands, testimonials, stores, flash, settings] = await Promise.all([
       this.listTips(true),
-      this.listBrands(true),
+      this.listBrands(true, true),
       this.listTestimonials(true),
       this.listStores(true),
       db.query<ProductRow>(
@@ -85,42 +90,84 @@ export const ContentService = {
   },
 
   // ─── Brands ───────────────────────────────────────────────────────────────
-  async listBrands(activeOnly = false): Promise<Brand[]> {
+  /**
+   * @param activeOnly   hide deactivated brands (app / dropdown for new products)
+   * @param withProducts only brands that have at least one active product (what the app shows)
+   */
+  async listBrands(activeOnly = false, withProducts = false): Promise<Brand[]> {
+    const conds: string[] = [];
+    if (activeOnly) conds.push('b.is_active = true');
+    if (withProducts) conds.push('EXISTS (SELECT 1 FROM products p WHERE p.brand_id = b.id AND p.is_active = true)');
     const { rows } = await db.query<Brand>(
-      `SELECT ${BRAND_COLS} FROM brands ${activeWhere(activeOnly)} ORDER BY sort_order ASC, id ASC`
+      `SELECT ${BRAND_COLS} FROM brands b ${conds.length ? `WHERE ${conds.join(' AND ')}` : ''}
+       ORDER BY b.sort_order ASC, LOWER(b.name) ASC, b.id ASC`
     );
     return rows;
   },
 
-  async createBrand(dto: CreateBrandDto): Promise<Brand> {
-    const { rows } = await db.query<Brand>(
-      `INSERT INTO brands (name, emoji, tint, sort_order)
-       VALUES ($1, COALESCE($2,'🐾'), COALESCE($3,'#D1FAE5'), COALESCE($4,0))
-       RETURNING ${BRAND_COLS}`,
-      [dto.name.trim(), dto.emoji, dto.tint, dto.sort_order]
+  async getBrand(id: number): Promise<Brand | null> {
+    const { rows } = await db.query<Brand>(`SELECT ${BRAND_COLS} FROM brands b WHERE b.id = $1`, [id]);
+    return rows[0] ?? null;
+  },
+
+  /** Throws 409 if another brand already uses this name (case-insensitive). */
+  async assertBrandNameFree(name: string, exceptId?: number): Promise<void> {
+    const { rows } = await db.query<{ id: number }>(
+      `SELECT id FROM brands WHERE LOWER(name) = LOWER($1) AND ($2::int IS NULL OR id <> $2)`,
+      [name.trim(), exceptId ?? null]
     );
-    return rows[0];
+    if (rows.length > 0) throw httpError(`A brand named "${name.trim()}" already exists.`, 409);
+  },
+
+  async createBrand(dto: CreateBrandDto): Promise<Brand> {
+    await this.assertBrandNameFree(dto.name);
+    const { rows } = await db.query<{ id: number }>(
+      `INSERT INTO brands (name, emoji, tint, image_url, sort_order)
+       VALUES ($1, COALESCE($2,'🐾'), COALESCE($3,'#D1FAE5'), $4, COALESCE($5,0))
+       RETURNING id`,
+      [dto.name.trim(), dto.emoji, dto.tint, dto.image_url || null, dto.sort_order]
+    );
+    return (await this.getBrand(rows[0].id))!;
   },
 
   async updateBrand(id: number, dto: UpdateBrandDto): Promise<Brand | null> {
-    const { rows } = await db.query<Brand>(
+    if (dto.name !== undefined) await this.assertBrandNameFree(dto.name, id);
+    // image_url: undefined = keep, '' / null = remove the logo, string = replace.
+    const imageGiven = dto.image_url !== undefined;
+    const { rows } = await db.query<{ id: number; name: string }>(
       `UPDATE brands SET
          name       = COALESCE($1, name),
          emoji      = COALESCE($2, emoji),
          tint       = COALESCE($3, tint),
          sort_order = COALESCE($4, sort_order),
-         is_active  = COALESCE($5, is_active)
+         is_active  = COALESCE($5, is_active),
+         image_url  = CASE WHEN $7::boolean THEN $8 ELSE image_url END
        WHERE id = $6
-       RETURNING ${BRAND_COLS}`,
+       RETURNING id, name`,
       [dto.name?.trim() ?? null, dto.emoji ?? null, dto.tint ?? null,
-       dto.sort_order ?? null, dto.is_active ?? null, id]
+       dto.sort_order ?? null, dto.is_active ?? null, id, imageGiven, dto.image_url || null]
     );
-    return rows[0] ?? null;
+    if (!rows[0]) return null;
+    // Keep the denormalised product.brand text in step with a rename.
+    if (dto.name !== undefined) {
+      await db.query('UPDATE products SET brand = $1 WHERE brand_id = $2', [rows[0].name, id]);
+    }
+    return this.getBrand(id);
   },
 
+  /** Refuses while products still use the brand — deactivate it instead. */
   async removeBrand(id: number): Promise<boolean> {
-    const { rowCount } = await db.query('DELETE FROM brands WHERE id = $1', [id]);
-    return (rowCount ?? 0) > 0;
+    const brand = await this.getBrand(id);
+    if (!brand) return false;
+    const n = brand.total_products ?? 0;
+    if (n > 0) {
+      throw httpError(
+        `"${brand.name}" is used by ${n} product${n === 1 ? '' : 's'}. Move or delete them first, or deactivate the brand instead.`,
+        409
+      );
+    }
+    await db.query('DELETE FROM brands WHERE id = $1', [id]);
+    return true;
   },
 
   // ─── Testimonials ─────────────────────────────────────────────────────────

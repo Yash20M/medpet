@@ -1,18 +1,19 @@
 import {
   LayoutDashboard, Package, Boxes, ClipboardList, Tags,
-  BadgePercent, Users as UsersIcon, Bell, LogOut, PawPrint, Ticket, Headset, Smartphone, Truck, MapPinned,
+  BadgePercent, Users as UsersIcon, Bell, LogOut, PawPrint, Ticket, Headset, Smartphone, Truck, MapPinned, History, Award,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 export type Tab =
-  | 'dashboard' | 'products' | 'inventory' | 'orders' | 'livemap'
-  | 'categories' | 'offers' | 'coupons' | 'users' | 'delivery' | 'notifications' | 'support' | 'content';
+  | 'dashboard' | 'products' | 'brands' | 'inventory' | 'orders' | 'livemap'
+  | 'categories' | 'offers' | 'coupons' | 'users' | 'delivery' | 'deliveryhistory' | 'notifications' | 'support' | 'content';
 
 interface NavItem { tab: Tab; label: string; Icon: LucideIcon; }
 
 const NAV_ITEMS: NavItem[] = [
   { tab: 'dashboard', label: 'Dashboard', Icon: LayoutDashboard },
   { tab: 'products', label: 'Products', Icon: Package },
+  { tab: 'brands', label: 'Brands', Icon: Award },
   { tab: 'inventory', label: 'Inventory', Icon: Boxes },
   { tab: 'orders', label: 'Orders', Icon: ClipboardList },
   { tab: 'livemap', label: 'Live Map', Icon: MapPinned },
@@ -22,6 +23,7 @@ const NAV_ITEMS: NavItem[] = [
   { tab: 'content', label: 'App Content', Icon: Smartphone },
   { tab: 'users', label: 'Users', Icon: UsersIcon },
   { tab: 'delivery', label: 'Delivery Partners', Icon: Truck },
+  { tab: 'deliveryhistory', label: 'Delivery History', Icon: History },
   { tab: 'notifications', label: 'Notifications', Icon: Bell },
   { tab: 'support', label: 'Support', Icon: Headset },
 ];

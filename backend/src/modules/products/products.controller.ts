@@ -6,7 +6,11 @@ import { sendSuccess, sendError } from '../../shared/utils/response';
 const parseQuery = (req: Request): ProductQuery => ({
   category: req.query.category as string | undefined,
   featured: req.query.featured === 'true',
+  accessory: req.query.accessory === 'true' ? true : req.query.accessory === 'false' ? false : undefined,
+  petType: typeof req.query.pet_type === 'string' && req.query.pet_type ? req.query.pet_type.toLowerCase() : undefined,
   search: req.query.search as string | undefined,
+  brandId: req.query.brand_id ? Number(req.query.brand_id) || undefined : undefined,
+  brand: req.query.brand as string | undefined,
   page: req.query.page ? Number(req.query.page) : undefined,
   limit: req.query.limit ? Number(req.query.limit) : undefined,
 });
@@ -50,14 +54,18 @@ export const ProductsController = {
       const data = await ProductsService.create(req.body as CreateProductDto);
       sendSuccess(res, { message: 'Product created.', data }, 201);
     } catch (err) {
-      sendError(res, (err as Error).message, 400);
+      sendError(res, (err as Error).message, (err as { statusCode?: number }).statusCode ?? 400);
     }
   },
 
   async update(req: Request, res: Response): Promise<void> {
-    const data = await ProductsService.update(Number(req.params.id), req.body as UpdateProductDto);
-    if (!data) { sendError(res, 'Product not found.', 404); return; }
-    sendSuccess(res, { message: 'Product updated.', data });
+    try {
+      const data = await ProductsService.update(Number(req.params.id), req.body as UpdateProductDto);
+      if (!data) { sendError(res, 'Product not found.', 404); return; }
+      sendSuccess(res, { message: 'Product updated.', data });
+    } catch (err) {
+      sendError(res, (err as Error).message, (err as { statusCode?: number }).statusCode ?? 400);
+    }
   },
 
   async remove(req: Request, res: Response): Promise<void> {
